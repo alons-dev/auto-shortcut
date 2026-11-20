@@ -9,6 +9,7 @@ namespace AutoShortcut
     // don't fit: with the mouse wheel or the arrow buttons at the edges.
     internal sealed class ChipBar : Control
     {
+        private readonly Theme _theme;
         private readonly Panel _viewport;   // clips the chips
         private readonly Panel _strip;      // holds the chips; moved left/right to scroll
         private readonly Chip[] _chips;
@@ -20,14 +21,14 @@ namespace AutoShortcut
 
         public ChipBar(Theme theme, string[] labels)
         {
+            _theme = theme;
+            SetStyle(ControlStyles.UserPaint | ControlStyles.AllPaintingInWmPaint | ControlStyles.Opaque, true);
             SetStyle(ControlStyles.Selectable, false);
             BackColor = theme.Background;
             Height = Ui.S(40);
 
-            _viewport = new Panel();
-            _viewport.BackColor = theme.Background;
-            _strip = new Panel();
-            _strip.BackColor = theme.Background;
+            _viewport = new GlassPanel(theme);
+            _strip = new GlassPanel(theme);
 
             _chips = new Chip[labels.Length];
             int x = 0;
@@ -132,6 +133,8 @@ namespace AutoShortcut
 
         internal void Wheel(int delta) { ScrollBy(-delta / 2); }
 
+        protected override void OnPaint(PaintEventArgs e) { Glass.Paint(e, _theme, null); }
+
         private sealed class Chip : Control
         {
             private readonly Theme _theme;
@@ -142,8 +145,7 @@ namespace AutoShortcut
             {
                 _theme = theme;
                 SetStyle(ControlStyles.UserPaint | ControlStyles.AllPaintingInWmPaint |
-                         ControlStyles.OptimizedDoubleBuffer | ControlStyles.ResizeRedraw |
-                         ControlStyles.SupportsTransparentBackColor, true);
+                         ControlStyles.Opaque | ControlStyles.ResizeRedraw, true);
                 SetStyle(ControlStyles.Selectable, false);
                 Font = new Font("Segoe UI", 9F);
                 Text = label;
@@ -168,20 +170,26 @@ namespace AutoShortcut
 
             protected override void OnPaint(PaintEventArgs e)
             {
-                Graphics g = e.Graphics;
-                g.SmoothingMode = SmoothingMode.AntiAlias;
-                Rectangle r = new Rectangle(0, 0, Width - 1, Height - 1);
-                Color fill = _active ? _theme.Accent : (_hover ? _theme.Hover : _theme.KeyFill);
-                using (GraphicsPath path = Ui.RoundedRect(r, Height / 2))
-                using (SolidBrush brush = new SolidBrush(fill))
+                Glass.Paint(e, _theme, delegate(Graphics g)
                 {
-                    g.FillPath(brush, path);
-                    if (!_active)
-                        using (Pen border = new Pen(_theme.KeyBorder))
-                            g.DrawPath(border, path);
-                }
-                TextRenderer.DrawText(g, Text, Font, ClientRectangle, _active ? _theme.AccentText : _theme.Foreground,
-                    TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter | TextFormatFlags.SingleLine | TextFormatFlags.NoPrefix);
+                    g.SmoothingMode = SmoothingMode.AntiAlias;
+                    Rectangle r = new Rectangle(0, 0, Width - 1, Height - 1);
+                    using (GraphicsPath path = Ui.RoundedRect(r, Height / 2))
+                    {
+                        if (_active)
+                            using (SolidBrush brush = new SolidBrush(_theme.Accent)) g.FillPath(brush, path);
+                        else
+                        {
+                            using (SolidBrush brush = new SolidBrush(_theme.KeyFill)) g.FillPath(brush, path);
+                            // On acrylic Hover is a light layer: put it over the chip's own fill.
+                            if (_hover)
+                                using (SolidBrush brush = new SolidBrush(_theme.Hover)) g.FillPath(brush, path);
+                            using (Pen border = new Pen(_theme.KeyBorder)) g.DrawPath(border, path);
+                        }
+                    }
+                    Glass.Text(g, _theme, Text, Font, ClientRectangle, _active ? _theme.AccentText : _theme.Foreground,
+                        TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter | TextFormatFlags.SingleLine | TextFormatFlags.NoPrefix);
+                });
             }
         }
     }

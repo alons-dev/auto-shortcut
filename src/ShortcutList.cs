@@ -14,15 +14,18 @@ namespace AutoShortcut
     //
     // It only reports what the user did (EntryClicked, StarClicked,
     // EntryContextMenu); PopupForm decides what happens.
-    internal sealed class ShortcutList : ScrollableControl
+    //
+    // It scrolls by itself with a thin Windows 11-style bar on the right (a line
+    // that widens under the mouse; drag it, click above/below it, or use the wheel).
+    // The native scrollbar can't be drawn on acrylic (see Glass).
+    internal sealed class ShortcutList : Control
     {
         private const int RowHeight = 40;
         private const int HeaderHeight = 32;
         private const int SidePad = 6;
         private const int StarBox = 28;
-
-        [DllImport("uxtheme.dll", CharSet = CharSet.Unicode)]
-        private static extern int SetWindowTheme(IntPtr hwnd, string appName, string idList);
+        private const int BarZone = 12;    // px from the right edge where the mouse uses the bar
+        private const int WheelLine = 20;  // px per wheel "line" (Windows usually scrolls 3 per notch)
 
         private readonly Theme _theme;
         private readonly Font _smallFont = new Font("Segoe UI", 8.25F);
@@ -35,6 +38,11 @@ namespace AutoShortcut
         private int _hover = -1;
         private bool _hoverStar;
         private int _pressed = -1;
+        private int _scroll;               // px scrolled from the top
+        private int _contentHeight;
+        private bool _barHover;
+        private int _dragFrom = -1;        // mouse Y where a thumb drag started; -1 = not dragging
+        private int _dragScroll;
 
         public Predicate<Entry> IsFavorite { get; set; }
 
@@ -46,9 +54,8 @@ namespace AutoShortcut
         {
             _theme = theme;
             SetStyle(ControlStyles.UserPaint | ControlStyles.AllPaintingInWmPaint |
-                     ControlStyles.OptimizedDoubleBuffer | ControlStyles.ResizeRedraw, true);
+                     ControlStyles.Opaque | ControlStyles.ResizeRedraw, true);
             SetStyle(ControlStyles.Selectable, false);
-            AutoScroll = true;
             BackColor = theme.Background;
             ForeColor = theme.Foreground;
             Text = "Shortcut list";   // not drawn; the window's name for accessibility tools
@@ -61,7 +68,7 @@ namespace AutoShortcut
         // keepScroll: same view refreshed (e.g. a star toggled) - stay where we were.
         public void SetItems(IList<ListItem> items, string emptyText, bool keepScroll)
         {
-            int scroll = -AutoScrollPosition.Y;
+            int scroll = _scroll;
             _items = items ?? new List<ListItem>();
             _emptyText = emptyText ?? "";
             _tops = new int[_items.Count + 1];
@@ -74,8 +81,8 @@ namespace AutoShortcut
             _tops[_items.Count] = y;
             _hover = -1;
             _pressed = -1;
-            AutoScrollMinSize = new Size(0, y);
-            AutoScrollPosition = new Point(0, keepScroll ? scroll : 0);
+            _contentHeight = y;
+            _scroll = Clamp(keepScroll ? scroll : 0);
             UpdateHover();
             Invalidate();
             if (IsHandleCreated) AccessibilityNotifyClients(AccessibleEvents.Reorder, -1);
@@ -83,19 +90,59 @@ namespace AutoShortcut
 
         public void ScrollToTop()
         {
-            AutoScrollPosition = Point.Empty;
+            ScrollTo(0);
+        }
+
+        // ---- Scrolling ----
+
+        private int MaxScroll { get { return Math.Max(0, _contentHeight - ClientSize.Height); } }
+
+        private int Clamp(int scroll) { return Math.Max(0, Math.Min(MaxScroll, scroll)); }
+
+        private void ScrollTo(int scroll)
+        {
+            scroll = Clamp(scroll);
+            if (scroll == _scroll) return;
+            _scroll = scroll;
+            UpdateHover();
             Invalidate();
         }
 
-        protected override void OnHandleCreated(EventArgs e)
+        protected override void OnResize(EventArgs e)
         {
-            base.OnHandleCreated(e);
-            SetWindowTheme(Handle, _theme.Dark ? "DarkMode_Explorer" : "Explorer", null);   // dark scrollbar
+            base.OnResize(e);
+            _scroll = Clamp(_scroll);
+        }
+
+        private bool Overflows { get { return _contentHeight > ClientSize.Height; } }
+
+        private bool InBarZone(Point p)
+        {
+            return Overflows && ClientRectangle.Contains(p) && p.X >= ClientSize.Width - Ui.S(BarZone);
+        }
+
+        // Thumb position; the height is proportional to how much of the list is visible.
+        private void ThumbSpan(out int top, out int height, out int track)
+        {
+            int pad = Ui.S(4);
+            track = Math.Max(1, ClientSize.Height - 2 * pad);
+            height = Math.Min(track, Math.Max(Ui.S(24), (int)((long)track * ClientSize.Height / Math.Max(1, _contentHeight))));
+            int max = MaxScroll;
+            top = pad + (max == 0 ? 0 : (int)((long)(track - height) * _scroll / max));
+        }
+
+        private Rectangle ThumbBounds()
+        {
+            if (!Overflows) return Rectangle.Empty;
+            int top, height, track;
+            ThumbSpan(out top, out height, out track);
+            int w = _barHover || _dragFrom >= 0 ? Ui.S(6) : Ui.S(2);
+            return new Rectangle(ClientSize.Width - Ui.S(4) - w, top, w, height);
         }
 
         // ---- Geometry ----
 
-        private int Offset { get { return AutoScrollPosition.Y; } }   // <= 0
+        private int Offset { get { return -_scroll; } }   // <= 0
 
         private Rectangle ItemBounds(int i)
         {
@@ -146,7 +193,13 @@ namespace AutoShortcut
         private void UpdateHover()
         {
             Point p = PointToClient(Cursor.Position);
-            int index = ClientRectangle.Contains(p) ? IndexAt(p) : -1;
+            bool bar = _dragFrom >= 0 || InBarZone(p);
+            if (bar != _barHover)
+            {
+                _barHover = bar;
+                Invalidate();
+            }
+            int index = ClientRectangle.Contains(p) && !bar ? IndexAt(p) : -1;
             Entry entry = index >= 0 ? _items[index].Entry : null;
             if (entry == null) index = -1;
             bool star = entry != null && StarBounds(entry, ItemBounds(index)).Contains(p);
@@ -173,15 +226,52 @@ namespace AutoShortcut
             return lines.Count == 0 ? null : string.Join("\n", lines);
         }
 
-        protected override void OnMouseMove(MouseEventArgs e) { base.OnMouseMove(e); UpdateHover(); }
+        protected override void OnMouseMove(MouseEventArgs e)
+        {
+            base.OnMouseMove(e);
+            if (_dragFrom >= 0)
+            {
+                int top, height, track;
+                ThumbSpan(out top, out height, out track);
+                int room = Math.Max(1, track - height);
+                ScrollTo(_dragScroll + (int)((long)(e.Y - _dragFrom) * MaxScroll / room));
+                return;
+            }
+            UpdateHover();
+        }
+
         protected override void OnMouseLeave(EventArgs e) { base.OnMouseLeave(e); _pressed = -1; UpdateHover(); }
-        protected override void OnScroll(ScrollEventArgs se) { base.OnScroll(se); UpdateHover(); Invalidate(); }
-        protected override void OnMouseWheel(MouseEventArgs e) { base.OnMouseWheel(e); UpdateHover(); Invalidate(); }
+
+        protected override void OnMouseWheel(MouseEventArgs e)
+        {
+            base.OnMouseWheel(e);
+            int lines = SystemInformation.MouseWheelScrollLines;
+            int step = lines < 0
+                ? e.Delta * ClientSize.Height / 120                    // "one screen at a time"
+                : e.Delta * Math.Max(1, lines) * Ui.S(WheelLine) / 120;
+            ScrollTo(_scroll - step);
+        }
 
         protected override void OnMouseDown(MouseEventArgs e)
         {
             base.OnMouseDown(e);
             if (e.Button != MouseButtons.Left) return;
+            if (InBarZone(e.Location))
+            {
+                Rectangle thumb = ThumbBounds();
+                if (e.Y >= thumb.Top && e.Y < thumb.Bottom)
+                {
+                    _dragFrom = e.Y;   // the control keeps the mouse until it's released
+                    _dragScroll = _scroll;
+                    Invalidate();
+                }
+                else
+                {
+                    int page = Math.Max(Ui.S(RowHeight), ClientSize.Height - Ui.S(RowHeight));
+                    ScrollTo(_scroll + (e.Y < thumb.Top ? -page : page));
+                }
+                return;
+            }
             _pressed = _hover;
             Invalidate();
         }
@@ -189,6 +279,14 @@ namespace AutoShortcut
         protected override void OnMouseUp(MouseEventArgs e)
         {
             base.OnMouseUp(e);
+            if (_dragFrom >= 0)
+            {
+                _dragFrom = -1;
+                UpdateHover();
+                Invalidate();
+                return;
+            }
+            if (e.Button == MouseButtons.Left && InBarZone(e.Location)) return;
             int index = IndexAt(e.Location);
             Entry entry = index >= 0 ? _items[index].Entry : null;
             if (e.Button == MouseButtons.Left)
@@ -224,28 +322,56 @@ namespace AutoShortcut
 
         protected override void OnPaint(PaintEventArgs e)
         {
-            Graphics g = e.Graphics;
-            if (_items.Count == 0)
+            Rectangle clip = e.ClipRectangle;
+            Glass.Paint(e, _theme, delegate(Graphics g)
             {
-                Rectangle r = new Rectangle(Ui.S(16), Ui.S(16), ClientSize.Width - Ui.S(32), Ui.S(60));
-                TextRenderer.DrawText(g, _emptyText, Font, r, _theme.Subtle,
-                    TextFormatFlags.HorizontalCenter | TextFormatFlags.Top | TextFormatFlags.WordBreak | TextFormatFlags.NoPrefix);
-                return;
-            }
-            for (int i = 0; i < _items.Count; i++)
-            {
-                Rectangle r = ItemBounds(i);
-                if (r.Bottom < e.ClipRectangle.Top) continue;
-                if (r.Top > e.ClipRectangle.Bottom) break;
-                if (_items[i].Header != null) PaintHeader(g, _items[i].Header, r);
-                else PaintRow(g, _items[i].Entry, r, i);
-            }
+                if (_items.Count == 0)
+                {
+                    Rectangle r = new Rectangle(Ui.S(16), Ui.S(16), ClientSize.Width - Ui.S(32), Ui.S(60));
+                    Glass.Text(g, _theme, _emptyText, Font, r, _theme.Subtle,
+                        TextFormatFlags.HorizontalCenter | TextFormatFlags.Top | TextFormatFlags.WordBreak | TextFormatFlags.NoPrefix);
+                    return;
+                }
+                for (int i = 0; i < _items.Count; i++)
+                {
+                    Rectangle r = ItemBounds(i);
+                    if (r.Bottom < clip.Top) continue;
+                    if (r.Top > clip.Bottom) break;
+                    if (_items[i].Header != null) PaintHeader(g, _items[i].Header, r, i > 0);
+                    else PaintRow(g, _items[i].Entry, r, i);
+                }
+                PaintScrollbar(g);
+            });
         }
 
-        private void PaintHeader(Graphics g, string text, Rectangle r)
+        private void PaintScrollbar(Graphics g)
         {
+            Rectangle thumb = ThumbBounds();
+            if (thumb.IsEmpty) return;
+            g.SmoothingMode = SmoothingMode.AntiAlias;
+            bool wide = _barHover || _dragFrom >= 0;
+            if (wide)
+            {
+                Rectangle track = new Rectangle(thumb.X - Ui.S(2), Ui.S(2), thumb.Width + Ui.S(4), ClientSize.Height - Ui.S(4));
+                using (GraphicsPath path = Ui.RoundedRect(track, track.Width / 2))
+                using (SolidBrush brush = new SolidBrush(_theme.Hover))
+                    g.FillPath(brush, path);
+            }
+            Color c = _theme.Subtle;
+            using (GraphicsPath path = Ui.RoundedRect(thumb, Math.Max(1, thumb.Width / 2)))
+            using (SolidBrush brush = new SolidBrush(Color.FromArgb(wide ? c.A : c.A * 2 / 3, c.R, c.G, c.B)))
+                g.FillPath(brush, path);
+        }
+
+        // A section title; from the second section on, a thin line above it closes
+        // the previous one (with "All sections" they would otherwise run together).
+        private void PaintHeader(Graphics g, string text, Rectangle r, bool divider)
+        {
+            if (divider)
+                using (SolidBrush line = new SolidBrush(_theme.Divider))
+                    g.FillRectangle(line, r.X + Ui.S(10), r.Y + Ui.S(4), r.Width - Ui.S(20), Math.Max(1, Ui.S(1)));
             Rectangle tr = new Rectangle(r.X + Ui.S(10), r.Y + Ui.S(8), r.Width - Ui.S(20), r.Height - Ui.S(8));
-            TextRenderer.DrawText(g, text, _headerFont, tr, _theme.Subtle,
+            Glass.Text(g, _theme, text, _headerFont, tr, _theme.Subtle,
                 TextFormatFlags.Left | TextFormatFlags.VerticalCenter | TextFormatFlags.SingleLine | TextFormatFlags.NoPrefix);
         }
 
@@ -267,7 +393,7 @@ namespace AutoShortcut
             else if (entry.Target != null)
             {
                 Rectangle tr = new Rectangle(keysLeft, r.Y, r.Right - Ui.S(10) - keysLeft, r.Height);
-                TextRenderer.DrawText(g, entry.Target, _smallFont, tr, _theme.Subtle,
+                Glass.Text(g, _theme, entry.Target, _smallFont, tr, _theme.Subtle,
                     TextFormatFlags.Right | TextFormatFlags.VerticalCenter | TextFormatFlags.SingleLine |
                     TextFormatFlags.EndEllipsis | TextFormatFlags.NoPrefix);
             }
@@ -283,13 +409,13 @@ namespace AutoShortcut
                     using (SolidBrush brush = new SolidBrush(_theme.Pressed))
                         g.FillPath(brush, path);
                 }
-                TextRenderer.DrawText(g, favorite ? Ui.GlyphStarFilled : Ui.GlyphStar, _starFont, star,
+                Glass.Text(g, _theme, favorite ? Ui.GlyphStarFilled : Ui.GlyphStar, _starFont, star,
                     favorite ? _theme.Accent : _theme.Subtle, KeyFlags);
             }
 
             int nameRight = (hover || favorite ? star.Left : keysLeft) - Ui.S(6);
             Rectangle nameRect = new Rectangle(r.X + Ui.S(10), r.Y, Math.Max(0, nameRight - r.X - Ui.S(10)), r.Height);
-            TextRenderer.DrawText(g, entry.Name, Font, nameRect, ForeColor,
+            Glass.Text(g, _theme, entry.Name, Font, nameRect, ForeColor,
                 TextFormatFlags.Left | TextFormatFlags.VerticalCenter | TextFormatFlags.SingleLine |
                 TextFormatFlags.EndEllipsis | TextFormatFlags.NoPrefix);
         }
@@ -313,7 +439,7 @@ namespace AutoShortcut
                     g.FillPath(fill, path);
                     g.DrawPath(border, path);
                 }
-                TextRenderer.DrawText(g, entry.Keycaps[i], _smallFont, key, text, KeyFlags);
+                Glass.Text(g, _theme, entry.Keycaps[i], _smallFont, key, text, KeyFlags);
                 x = key.Left - Ui.S(4);
             }
         }

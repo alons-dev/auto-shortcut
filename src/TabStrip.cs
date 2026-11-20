@@ -9,6 +9,7 @@ namespace AutoShortcut
     // one in normal text with a short accent line under it, the rest dimmer.
     internal sealed class TabStrip : Control
     {
+        private readonly Theme _theme;
         private readonly TabButton[] _tabs;
         private int _selected;
 
@@ -16,6 +17,8 @@ namespace AutoShortcut
 
         public TabStrip(Theme theme, string[] labels)
         {
+            _theme = theme;
+            SetStyle(ControlStyles.UserPaint | ControlStyles.AllPaintingInWmPaint | ControlStyles.Opaque, true);
             SetStyle(ControlStyles.Selectable, false);
             BackColor = theme.Background;
             Height = Ui.S(36);
@@ -59,6 +62,8 @@ namespace AutoShortcut
             set { foreach (TabButton t in _tabs) t.Dimmed = value; }
         }
 
+        protected override void OnPaint(PaintEventArgs e) { Glass.Paint(e, _theme, null); }
+
         private sealed class TabButton : Control
         {
             private readonly Theme _theme;
@@ -70,7 +75,7 @@ namespace AutoShortcut
             {
                 _theme = theme;
                 SetStyle(ControlStyles.UserPaint | ControlStyles.AllPaintingInWmPaint |
-                         ControlStyles.OptimizedDoubleBuffer | ControlStyles.ResizeRedraw, true);
+                         ControlStyles.Opaque | ControlStyles.ResizeRedraw, true);
                 SetStyle(ControlStyles.Selectable, false);
                 Font = new Font("Segoe UI", 9.75F);
                 Text = label;
@@ -89,26 +94,28 @@ namespace AutoShortcut
 
             protected override void OnPaint(PaintEventArgs e)
             {
-                Graphics g = e.Graphics;
-                g.SmoothingMode = SmoothingMode.AntiAlias;
-                if (_hover)
+                Glass.Paint(e, _theme, delegate(Graphics g)
                 {
-                    Rectangle bg = new Rectangle(0, Ui.S(4), Width - 1, Height - Ui.S(8) - 1);
-                    using (GraphicsPath path = Ui.RoundedRect(bg, Ui.S(5)))
-                    using (SolidBrush brush = new SolidBrush(_theme.Hover))
-                        g.FillPath(brush, path);
-                }
-                Color color = _active && !_dimmed ? _theme.Foreground : _theme.Subtle;
-                TextRenderer.DrawText(g, Text, Font, new Rectangle(0, 0, Width, Height - Ui.S(4)), color,
-                    TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter | TextFormatFlags.SingleLine | TextFormatFlags.NoPrefix);
-                if (_active && !_dimmed)
-                {
-                    int w = Ui.S(16), h = Ui.S(3);
-                    Rectangle line = new Rectangle((Width - w) / 2, Height - h - Ui.S(3), w, h);
-                    using (GraphicsPath path = Ui.RoundedRect(line, h / 2 + 1))
-                    using (SolidBrush brush = new SolidBrush(_theme.Accent))
-                        g.FillPath(brush, path);
-                }
+                    g.SmoothingMode = SmoothingMode.AntiAlias;
+                    if (_hover)
+                    {
+                        Rectangle bg = new Rectangle(0, Ui.S(4), Width - 1, Height - Ui.S(8) - 1);
+                        using (GraphicsPath path = Ui.RoundedRect(bg, Ui.S(5)))
+                        using (SolidBrush brush = new SolidBrush(_theme.Hover))
+                            g.FillPath(brush, path);
+                    }
+                    Color color = _active && !_dimmed ? _theme.Foreground : _theme.Subtle;
+                    Glass.Text(g, _theme, Text, Font, new Rectangle(0, 0, Width, Height - Ui.S(4)), color,
+                        TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter | TextFormatFlags.SingleLine | TextFormatFlags.NoPrefix);
+                    if (_active && !_dimmed)
+                    {
+                        int w = Ui.S(16), h = Ui.S(3);
+                        Rectangle line = new Rectangle((Width - w) / 2, Height - h - Ui.S(3), w, h);
+                        using (GraphicsPath path = Ui.RoundedRect(line, h / 2 + 1))
+                        using (SolidBrush brush = new SolidBrush(_theme.Accent))
+                            g.FillPath(brush, path);
+                    }
+                });
             }
         }
     }

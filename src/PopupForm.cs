@@ -36,8 +36,8 @@ namespace AutoShortcut
         private const int CS_DROPSHADOW = 0x20000;   // soft shadow, like menus
 
         private readonly Theme _theme;
-        private readonly Label _title;
-        private readonly Label _hotkeyLabel;
+        private readonly TextLabel _title;
+        private readonly TextLabel _hotkeyLabel;
         private readonly IconButton _searchButton;
         private readonly IconButton _addButton;
         private readonly IconButton _settingsButton;
@@ -67,7 +67,10 @@ namespace AutoShortcut
 
         public PopupForm()
         {
+            // Acrylic behind the pop-up where Windows has it (Windows 11 22H2+, with
+            // transparency effects on); opaque everywhere else, Windows 10 included.
             _theme = Theme.Current();
+            if (Theme.AcrylicAvailable()) _theme.SetGlass(true);
 
             SuspendLayout();
             AutoScaleMode = AutoScaleMode.None;   // we scale by hand with Ui.S
@@ -81,15 +84,12 @@ namespace AutoShortcut
             BackColor = _theme.Background;
             ForeColor = _theme.Foreground;
 
-            _title = new Label();
-            _title.Text = "Shortcuts";
+            _title = new TextLabel(_theme, false);
             _title.Font = new Font("Segoe UI Semibold", 12F);
-            _title.AutoSize = true;
+            _title.Text = "Shortcuts";
             _title.Location = new Point(Ui.S(16), Ui.S(12));
 
-            _hotkeyLabel = new Label();
-            _hotkeyLabel.AutoSize = true;
-            _hotkeyLabel.ForeColor = _theme.Subtle;
+            _hotkeyLabel = new TextLabel(_theme, true);
             _hotkeyLabel.Font = new Font("Segoe UI", 8.25F);
 
             _searchButton = new IconButton(Ui.GlyphSearch, "Search", _theme);
@@ -203,7 +203,7 @@ namespace AutoShortcut
             int height = fixedPart + Math.Max(Ui.S(120), listMax);
 
             // Header: "Shortcuts  Win + Shift + Z"  ...  [search] [+] [gear]
-            _hotkeyLabel.Location = new Point(_title.Left + _title.PreferredWidth + Ui.S(6), Ui.S(18));
+            _hotkeyLabel.Location = new Point(_title.Right + Ui.S(6), Ui.S(18));
             _settingsButton.Location = new Point(width - Ui.S(8) - _settingsButton.Width, Ui.S(8));
             _addButton.Location = new Point(_settingsButton.Left - Ui.S(2) - _addButton.Width, Ui.S(8));
             _searchButton.Location = new Point(_addButton.Left - Ui.S(2) - _searchButton.Width, Ui.S(8));
@@ -377,6 +377,14 @@ namespace AutoShortcut
         {
             base.OnHandleCreated(e);
             Ui.ApplyFrame(Handle, _theme.Dark, Ui.CornerRound);
+            // If Windows says no, go opaque before anything is painted.
+            if (_theme.Glass && !Ui.TryAcrylic(Handle)) _theme.SetGlass(false);
+        }
+
+        // The background (and the gaps between controls): tint on acrylic.
+        protected override void OnPaintBackground(PaintEventArgs e)
+        {
+            Glass.Paint(e, _theme, null);
         }
 
         public void Toggle()

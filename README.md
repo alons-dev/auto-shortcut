@@ -22,7 +22,7 @@
 - **Search**: just start typing ("screenshot", "desktop", "win v"…).
 - **Favorites and recent** shortcuts always at hand.
 - **Your own shortcuts**: press keys, or open a program, a folder or a website.
-- Light and dark mode, like Windows. Free, no ads, nothing to configure.
+- Light and dark mode and the see-through look of Windows 11. Free, no ads, nothing to configure.
 
 ## Install
 
@@ -54,9 +54,19 @@ A few shortcuts appear dimmed: they need the mouse, a number, or Windows doesn't
 
 ## Uninstall
 
-**Settings › Apps › Installed apps › AutoShortcut › Uninstall.**
+From **Settings › Apps › Installed apps › AutoShortcut › Uninstall**, or with this command in PowerShell:
 
-Your own shortcuts are kept in case you come back. To delete them too, run this in PowerShell:
+```powershell
+& "$env:LOCALAPPDATA\Programs\AutoShortcut\uninstall.ps1"
+```
+
+Your own shortcuts are kept in case you come back. To delete them too, add `-RemoveSettings` to the command:
+
+```powershell
+& "$env:LOCALAPPDATA\Programs\AutoShortcut\uninstall.ps1" -RemoveSettings
+```
+
+Already uninstalled and want to delete them now? Run:
 
 ```powershell
 Remove-Item "$env:APPDATA\AutoShortcut" -Recurse -Force
@@ -66,7 +76,6 @@ Remove-Item "$env:APPDATA\AutoShortcut" -Recurse -Force
 
 - **Another app uses Win + Shift + Z?** AutoShortcut tells you. Pick another combination with the ⚙ button.
 - **Windows running as administrator** don't accept keys from normal apps, so shortcuts won't reach them.
-- **Why no .exe?** Windows' Smart App Control blocks new, unsigned programs. AutoShortcut runs on Windows PowerShell, which is part of Windows, so it just works.
 
 ---
 

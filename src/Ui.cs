@@ -62,6 +62,69 @@ namespace AutoShortcut
             }
         }
 
+        // Acrylic (live blur of what's behind) under the whole window, composed with
+        // the alpha of each pixel the window paints (see Glass).
+        //
+        // It uses the window's "accent policy", the blur the taskbar and Start used
+        // before Windows 11 22H2. The newer documented backdrop
+        // (DWMWA_SYSTEMBACKDROP_TYPE = transient window) shows a flat gray instead of
+        // the blur when the pop-up is opened by the global hotkey from another app,
+        // which is how it's always opened. false if Windows refuses; then the window
+        // stays as it was.
+        [StructLayout(LayoutKind.Sequential)]
+        private struct MARGINS { public int Left, Right, Top, Bottom; }
+
+        [StructLayout(LayoutKind.Sequential)]
+        private struct ACCENT_POLICY { public int AccentState, AccentFlags, GradientColor, AnimationId; }
+
+        [StructLayout(LayoutKind.Sequential)]
+        private struct WINDOWCOMPOSITIONATTRIBDATA { public int Attribute; public IntPtr Data; public int SizeOfData; }
+
+        [DllImport("dwmapi.dll")]
+        private static extern int DwmExtendFrameIntoClientArea(IntPtr hwnd, ref MARGINS margins);
+
+        [DllImport("user32.dll")]
+        private static extern int SetWindowCompositionAttribute(IntPtr hwnd, ref WINDOWCOMPOSITIONATTRIBDATA data);
+
+        private const int WCA_ACCENT_POLICY = 19;
+        private const int ACCENT_ENABLE_ACRYLICBLURBEHIND = 4;
+        private const int AlmostClearTint = 0x01000000;   // AABBGGRR; the theme tint is painted by Glass
+
+        public static bool TryAcrylic(IntPtr hwnd)
+        {
+            try
+            {
+                MARGINS all = new MARGINS();
+                all.Left = all.Right = all.Top = all.Bottom = -1;
+                if (DwmExtendFrameIntoClientArea(hwnd, ref all) != 0) return false;
+                if (SetAccent(hwnd, ACCENT_ENABLE_ACRYLICBLURBEHIND)) return true;
+                MARGINS none = new MARGINS();
+                DwmExtendFrameIntoClientArea(hwnd, ref none);
+                return false;
+            }
+            catch (DllNotFoundException) { return false; }
+            catch (EntryPointNotFoundException) { return false; }
+        }
+
+        private static bool SetAccent(IntPtr hwnd, int state)
+        {
+            ACCENT_POLICY policy = new ACCENT_POLICY();
+            policy.AccentState = state;
+            policy.GradientColor = AlmostClearTint;
+            int size = Marshal.SizeOf(typeof(ACCENT_POLICY));
+            IntPtr ptr = Marshal.AllocHGlobal(size);
+            try
+            {
+                Marshal.StructureToPtr(policy, ptr, false);
+                WINDOWCOMPOSITIONATTRIBDATA data = new WINDOWCOMPOSITIONATTRIBDATA();
+                data.Attribute = WCA_ACCENT_POLICY;
+                data.Data = ptr;
+                data.SizeOfData = size;
+                return SetWindowCompositionAttribute(hwnd, ref data) != 0;
+            }
+            finally { Marshal.FreeHGlobal(ptr); }
+        }
+
         // ---- Icons ----
 
         // Windows 11 icons are a font: "Segoe Fluent Icons" ("Segoe MDL2 Assets" on

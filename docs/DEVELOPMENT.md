@@ -28,6 +28,7 @@ The `.ps1` files are ASCII-only on purpose: Windows PowerShell 5.1 reads scripts
 
 - **Global hotkey**: `RegisterHotKey` (`user32.dll`). Windows sends `WM_HOTKEY` even while the app is in the background.
 - **Pop-up**: a borderless form above the taskbar, with Windows 11 rounded corners from `DwmSetWindowAttribute`.
+- **Acrylic**: on Windows 11 with transparency effects on (and no high contrast) the pop-up has a live blur behind it, through the window's accent policy (`SetWindowCompositionAttribute`), plus a 50 % tint of the theme color. The documented backdrop API draws flat gray when the window is opened by the global hotkey, so it isn't used. On acrylic every pixel's alpha counts, and classic GDI drawing leaves it at 0, so the pop-up's controls paint through [`Glass.cs`](../src/Glass.cs): a 32-bit off-screen buffer drawn with GDI+, copied with its alpha; the search `TextBox` is repainted fully opaque. The list scrolls by itself (thin Windows 11-style bar) because the native scrollbar can't draw there. Elsewhere (Windows 10 included) the same code paints opaque with ClearType text, as before. Set `AUTOSHORTCUT_NO_ACRYLIC=1` to force the opaque look.
 - **Built-in catalog**: [`WindowsShortcuts.cs`](../src/WindowsShortcuts.cs) has the Windows 11 shortcuts from Microsoft's [Keyboard shortcuts in Windows](https://support.microsoft.com/en-us/accessibility/windows/keyboard-shortcuts-in-windows) page (Windows 11 tab, without the Copilot section), in our own words. Entries that can't be pressed by an app (mouse, number ranges, <kbd>Ctrl</kbd>+<kbd>Alt</kbd>+<kbd>Del</kbd>, <kbd>Win</kbd>+<kbd>L</kbd>…) are reference only. Ids are saved in favorites and recents, so they never change.
 - **Views and search**: [`Library.cs`](../src/Library.cs) turns the config and the catalog into what each tab shows, and matches searches (every word must appear in the name, section or keys; `windows`/`control`/`delete`/`escape` also match `win`/`ctrl`/`del`/`esc`).
 - **List**: [`ShortcutList.cs`](../src/ShortcutList.cs) is a single owner-drawn, virtualized control (only visible rows are painted). Each row is exposed to screen readers through MSAA child objects.
@@ -50,7 +51,8 @@ The `.ps1` files are ASCII-only on purpose: Windows PowerShell 5.1 reads scripts
 | `KeyCombo.cs` | Text `"Win+Shift+Z"` ⇄ keys |
 | `KeySender.cs` / `ActionRunner.cs` | Run a shortcut |
 | `HotkeyWindow.cs` | Global hotkey |
-| `Theme.cs` / `Ui.cs` | Light/dark colors, scaling, icons and drawing |
+| `Theme.cs` / `Ui.cs` | Light/dark (and acrylic) colors, scaling, icons, window frame |
+| `Glass.cs` | Painting that keeps alpha, for the acrylic pop-up |
 
 If something goes wrong inside the app, it's logged in `%APPDATA%\AutoShortcut\error.log`.
 

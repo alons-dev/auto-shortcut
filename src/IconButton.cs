@@ -18,8 +18,9 @@ namespace AutoShortcut
         {
             _glyph = glyph;
             _theme = theme;
+            // Glass.Paint buffers the painting itself (and keeps alpha for acrylic).
             SetStyle(ControlStyles.UserPaint | ControlStyles.AllPaintingInWmPaint |
-                     ControlStyles.OptimizedDoubleBuffer | ControlStyles.ResizeRedraw, true);
+                     ControlStyles.Opaque | ControlStyles.ResizeRedraw, true);
             SetStyle(ControlStyles.Selectable, false);
             Size = new Size(Ui.S(32), Ui.S(32));
             Cursor = Cursors.Hand;
@@ -36,17 +37,19 @@ namespace AutoShortcut
 
         protected override void OnPaint(PaintEventArgs e)
         {
-            Graphics g = e.Graphics;
-            if (_hover)
+            Glass.Paint(e, _theme, delegate(Graphics g)
             {
-                g.SmoothingMode = SmoothingMode.AntiAlias;
-                Rectangle bg = new Rectangle(0, 0, Width - 1, Height - 1);
-                using (GraphicsPath path = Ui.RoundedRect(bg, Ui.S(5)))
-                using (SolidBrush brush = new SolidBrush(_pressed ? _theme.Pressed : _theme.Hover))
-                    g.FillPath(brush, path);
-            }
-            TextRenderer.DrawText(g, _glyph, Ui.IconFont, ClientRectangle, _theme.Foreground,
-                TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter | TextFormatFlags.NoPadding);
+                if (_hover)
+                {
+                    g.SmoothingMode = SmoothingMode.AntiAlias;
+                    Rectangle bg = new Rectangle(0, 0, Width - 1, Height - 1);
+                    using (GraphicsPath path = Ui.RoundedRect(bg, Ui.S(5)))
+                    using (SolidBrush brush = new SolidBrush(_pressed ? _theme.Pressed : _theme.Hover))
+                        g.FillPath(brush, path);
+                }
+                Glass.Text(g, _theme, _glyph, Ui.IconFont, ClientRectangle, _theme.Foreground,
+                    TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter | TextFormatFlags.NoPadding);
+            });
         }
     }
 }

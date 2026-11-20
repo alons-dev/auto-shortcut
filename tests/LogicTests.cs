@@ -33,6 +33,9 @@ namespace AutoShortcut.Tests
             Test("AppIconFound", AppIconFound);
             Test("MigrationSurvivesReadOnlyFile", MigrationSurvivesReadOnlyFile);
             Test("WarnOnceUntilChanged", WarnOnceUntilChanged);
+            Test("AcrylicRules", AcrylicRules);
+            Test("GlassColorsSwap", GlassColorsSwap);
+            Test("TextFormatMapping", TextFormatMapping);
 
             Console.WriteLine(_passed + " passed, " + _failed + " failed");
             return _failed;
@@ -438,6 +441,66 @@ namespace AutoShortcut.Tests
             Check("different", w.ShouldWarn("Invalid shortcut"), "a different problem warns");
             w.Clear();   // the hotkey worked
             Check("after clear", w.ShouldWarn("Invalid shortcut"), "warns again after it was fixed and broke again");
+        }
+
+        // Acrylic needs Windows 11 (build 22000), transparency effects on and no
+        // high contrast; anything else gets the opaque pop-up (Windows 10 included).
+        private static void AcrylicRules()
+        {
+            Check("windows 10", !Theme.CanUseAcrylic(19045, 1, false), "Windows 10 must be opaque");
+            Check("windows 11 21H2", Theme.CanUseAcrylic(22000, 1, false), "22000 is Windows 11");
+            Check("windows 11 22H2", Theme.CanUseAcrylic(22621, 1, false), "22621 supports acrylic");
+            Check("newer build", Theme.CanUseAcrylic(26300, 1, false), "newer builds support acrylic");
+            Check("transparency off", !Theme.CanUseAcrylic(26300, 0, false), "transparency effects off -> opaque");
+            Check("setting missing", Theme.CanUseAcrylic(26300, -1, false), "missing value means the default (on)");
+            Check("high contrast", !Theme.CanUseAcrylic(26300, 1, true), "high contrast -> opaque");
+        }
+
+        private static void GlassColorsSwap()
+        {
+            Theme opaque = Theme.Current();
+            Theme t = Theme.Current();
+            Check("starts opaque", !t.Glass, "Theme.Current() must be opaque");
+            t.SetGlass(true);
+            Check("glass on", t.Glass, "SetGlass(true) turns it on");
+            Equal("tint alpha", 128, (int)t.Tint.A);
+            Equal("tint color", opaque.Dark ? 32 : 243, (int)t.Tint.R);
+            Check("subtle translucent", t.Subtle.A < 255, "subtle text should let the acrylic through");
+            Check("hover translucent", t.Hover.A < 255, "hover should let the acrylic through");
+            Check("divider translucent", t.Divider.A > 0 && t.Divider.A < 255, "the section line should let the acrylic through");
+            Equal("foreground opaque", 255, (int)t.Foreground.A);
+            Equal("input opaque", opaque.InputBack, t.InputBack);
+            t.SetGlass(false);
+            Check("glass off", !t.Glass, "SetGlass(false) turns it off");
+            Equal("subtle back", opaque.Subtle, t.Subtle);
+            Equal("hover back", opaque.Hover, t.Hover);
+            Equal("keys back", opaque.KeyFill, t.KeyFill);
+            Equal("border back", opaque.Border, t.Border);
+            Equal("divider back", opaque.Divider, t.Divider);
+            Check("divider visible", opaque.Divider != opaque.Background, "the section line must differ from the background");
+        }
+
+        private static void TextFormatMapping()
+        {
+            System.Windows.Forms.TextFormatFlags f = System.Windows.Forms.TextFormatFlags.HorizontalCenter |
+                System.Windows.Forms.TextFormatFlags.VerticalCenter | System.Windows.Forms.TextFormatFlags.SingleLine |
+                System.Windows.Forms.TextFormatFlags.EndEllipsis | System.Windows.Forms.TextFormatFlags.NoPrefix;
+            using (System.Drawing.StringFormat sf = Glass.FormatFor(f))
+            {
+                Equal("center", System.Drawing.StringAlignment.Center, sf.Alignment);
+                Equal("middle", System.Drawing.StringAlignment.Center, sf.LineAlignment);
+                Check("no wrap", (sf.FormatFlags & System.Drawing.StringFormatFlags.NoWrap) != 0, "single line must not wrap");
+                Equal("ellipsis", System.Drawing.StringTrimming.EllipsisCharacter, sf.Trimming);
+                Equal("no prefix", System.Drawing.Text.HotkeyPrefix.None, sf.HotkeyPrefix);
+            }
+            using (System.Drawing.StringFormat sf = Glass.FormatFor(System.Windows.Forms.TextFormatFlags.Right |
+                System.Windows.Forms.TextFormatFlags.Top | System.Windows.Forms.TextFormatFlags.WordBreak))
+            {
+                Equal("right", System.Drawing.StringAlignment.Far, sf.Alignment);
+                Equal("top", System.Drawing.StringAlignment.Near, sf.LineAlignment);
+                Check("wraps", (sf.FormatFlags & System.Drawing.StringFormatFlags.NoWrap) == 0, "word break must wrap");
+                Equal("no trim", System.Drawing.StringTrimming.None, sf.Trimming);
+            }
         }
 
         private static void BadRefListsIgnored()
