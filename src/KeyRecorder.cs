@@ -4,13 +4,14 @@ using System.Windows.Forms;
 
 namespace AutoShortcut
 {
-    // Graba la siguiente combinación que pulse el usuario, incluidas las que Windows
-    // se reserva (Win+Shift+S, Win+V...). Para eso usa un hook de teclado de bajo nivel
-    // (WH_KEYBOARD_LL): Windows nos pasa cada pulsación ANTES de procesar sus atajos
-    // y podemos "tragárnosla" devolviendo 1.
+    // Records the next key combination the user presses, including the ones Windows
+    // reserves for itself (Win+Shift+S, Win+V...). It uses a low-level keyboard hook
+    // (WH_KEYBOARD_LL): Windows hands us every key press BEFORE processing its own
+    // shortcuts, and we can "swallow" it by returning 1.
     //
-    // Solo está activo mientras se graba: se suelta con la primera combinación
-    // completa, con Esc, o llamando a Stop() (el campo lo hace al cerrar o a los 10 s).
+    // It is only active while recording: it lets go after the first complete
+    // combination, on Esc, or when Stop() is called (the field does that on close
+    // or after 10 s).
     internal sealed class KeyRecorder : IDisposable
     {
         private delegate IntPtr LowLevelKeyboardProc(int nCode, IntPtr wParam, IntPtr lParam);
@@ -41,12 +42,12 @@ namespace AutoShortcut
         [DllImport("kernel32.dll", CharSet = CharSet.Unicode)]
         private static extern IntPtr GetModuleHandle(string name);
 
-        // Hay que guardar el delegado en un campo: si el recolector de basura lo
-        // liberase, Windows llamaría a una función que ya no existe.
+        // The delegate must be kept in a field: if the garbage collector freed it,
+        // Windows would call a function that no longer exists.
         private readonly LowLevelKeyboardProc _proc;
         private IntPtr _hook;
-        private uint _mods;      // modificadores pulsados ahora mismo
-        private bool _done;      // ya tenemos la combinación: dejar pasar el resto
+        private uint _mods;      // modifiers currently held down
+        private bool _done;      // we already have the combination: let the rest through
 
         public event Action<KeyCombo> Recorded;
         public event Action Cancelled;
@@ -87,11 +88,11 @@ namespace AutoShortcut
             if (mod != 0)
             {
                 if (down) _mods |= mod; else _mods &= ~mod;
-                return (IntPtr)1;   // tragada: Windows no la ve
+                return (IntPtr)1;   // swallowed: Windows never sees it
             }
             if (!down) return (IntPtr)1;
 
-            // Primera tecla normal: ya tenemos la combinación.
+            // First regular key: we have the combination.
             _done = true;
             if (key == Keys.Escape && _mods == 0)
             {

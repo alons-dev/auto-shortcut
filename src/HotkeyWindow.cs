@@ -4,14 +4,14 @@ using System.Windows.Forms;
 
 namespace AutoShortcut
 {
-    // Hotkey global. RegisterHotKey (user32.dll) le pide a Windows que nos avise
-    // con un mensaje WM_HOTKEY cada vez que se pulse la combinación, esté la app
-    // en primer plano o no. El aviso llega a una ventana: usamos una "message-only"
-    // (hija de HWND_MESSAGE), que es invisible y solo sirve para recibir mensajes.
+    // Global hotkey. RegisterHotKey (user32.dll) asks Windows to send us a WM_HOTKEY
+    // message whenever the combination is pressed, whether or not the app is in the
+    // foreground. The message goes to a window: we use a "message-only" window
+    // (child of HWND_MESSAGE), which is invisible and only receives messages.
     internal sealed class HotkeyWindow : NativeWindow, IDisposable
     {
         private const int WM_HOTKEY = 0x0312;
-        private const uint MOD_NOREPEAT = 0x4000;   // no repetir mientras se mantiene pulsada
+        private const uint MOD_NOREPEAT = 0x4000;   // don't repeat while held down
         private const int HotkeyId = 1;
         private static readonly IntPtr HWND_MESSAGE = new IntPtr(-3);
 
@@ -32,7 +32,7 @@ namespace AutoShortcut
             CreateHandle(cp);
         }
 
-        // Devuelve false si Windows la rechaza (normalmente porque otra app ya la usa).
+        // Returns false if Windows refuses it (usually because another app already uses it).
         public bool Register(KeyCombo combo)
         {
             Unregister();

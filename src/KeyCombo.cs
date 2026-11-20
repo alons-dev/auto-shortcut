@@ -1,35 +1,32 @@
 using System;
 using System.Collections.Generic;
-using System.Text;
 using System.Windows.Forms;
 
 namespace AutoShortcut
 {
-    // Una combinación de teclas escrita como texto, p. ej. "Win+Shift+A":
-    // varios modificadores (Win, Ctrl, Alt, Shift) y una sola tecla normal.
-    // La usan la hotkey global (RegisterHotKey) y los atajos que se envían con SendInput.
+    // A key combination written as text, e.g. "Win+Shift+A":
+    // any modifiers (Win, Ctrl, Alt, Shift) plus exactly one regular key.
+    // Used by the global hotkey (RegisterHotKey) and by shortcuts sent with SendInput.
     internal sealed class KeyCombo
     {
-        // Valores de los modificadores tal como los espera RegisterHotKey.
+        // Modifier values as RegisterHotKey expects them.
         public const uint MOD_ALT = 0x1;
         public const uint MOD_CONTROL = 0x2;
         public const uint MOD_SHIFT = 0x4;
         public const uint MOD_WIN = 0x8;
 
-        // Nombres que se aceptan al leer, además de los del enum Keys de .NET.
+        // Names accepted when parsing, on top of the names in .NET's Keys enum.
         private static readonly Dictionary<string, Keys> Aliases = new Dictionary<string, Keys>(StringComparer.OrdinalIgnoreCase)
         {
-            { "Esc", Keys.Escape },        { "Del", Keys.Delete },       { "Supr", Keys.Delete },
-            { "Ins", Keys.Insert },        { "PgUp", Keys.PageUp },      { "PgDn", Keys.PageDown },
-            { "RePág", Keys.PageUp },      { "AvPág", Keys.PageDown },   { "Inicio", Keys.Home },
-            { "Fin", Keys.End },           { "Espacio", Keys.Space },    { "Retroceso", Keys.Back },
-            { "Backspace", Keys.Back },    { "PrtSc", Keys.PrintScreen },{ "ImprPant", Keys.PrintScreen },
-            { "CapsLock", Keys.CapsLock }, { "↑", Keys.Up },             { "↓", Keys.Down },
-            { "←", Keys.Left },            { "→", Keys.Right },
+            { "Esc", Keys.Escape },        { "Del", Keys.Delete },       { "Ins", Keys.Insert },
+            { "PgUp", Keys.PageUp },       { "PgDn", Keys.PageDown },    { "Backspace", Keys.Back },
+            { "PrtSc", Keys.PrintScreen }, { "CapsLock", Keys.CapsLock },
+            { "↑", Keys.Up },              { "↓", Keys.Down },           { "←", Keys.Left },
+            { "→", Keys.Right },
             { ",", Keys.Oemcomma },        { ".", Keys.OemPeriod },      { "-", Keys.OemMinus },
         };
 
-        // Cómo se guarda cada tecla en el JSON (cuando el nombre del enum no es el ideal).
+        // How each key is saved in the JSON (when the enum name isn't the best one).
         private static readonly Dictionary<Keys, string> SaveNames = new Dictionary<Keys, string>
         {
             { Keys.PageDown, "PageDown" }, { Keys.PageUp, "PageUp" },   { Keys.Enter, "Enter" },
@@ -37,13 +34,12 @@ namespace AutoShortcut
             { Keys.Oemcomma, "," },        { Keys.OemPeriod, "." },     { Keys.OemMinus, "-" },
         };
 
-        // Cómo se muestra cada tecla en el pop-up.
+        // How each key is shown in the pop-up.
         private static readonly Dictionary<Keys, string> ShowNames = new Dictionary<Keys, string>
         {
-            { Keys.Escape, "Esc" },        { Keys.Delete, "Supr" },     { Keys.Insert, "Insert" },
-            { Keys.PageUp, "RePág" },      { Keys.PageDown, "AvPág" },  { Keys.Home, "Inicio" },
-            { Keys.End, "Fin" },           { Keys.Space, "Espacio" },   { Keys.Back, "Retroceso" },
-            { Keys.Enter, "Enter" },       { Keys.PrintScreen, "ImprPant" }, { Keys.CapsLock, "Bloq Mayús" },
+            { Keys.Escape, "Esc" },        { Keys.Delete, "Del" },      { Keys.Insert, "Ins" },
+            { Keys.PageUp, "PgUp" },       { Keys.PageDown, "PgDn" },   { Keys.Back, "Backspace" },
+            { Keys.Enter, "Enter" },       { Keys.PrintScreen, "PrtSc" }, { Keys.CapsLock, "Caps Lock" },
             { Keys.Up, "↑" },              { Keys.Down, "↓" },          { Keys.Left, "←" },
             { Keys.Right, "→" },
             { Keys.Oemcomma, "," },        { Keys.OemPeriod, "." },     { Keys.OemMinus, "-" },
@@ -78,9 +74,9 @@ namespace AutoShortcut
                     case "win": case "windows": mods |= MOD_WIN; continue;
                     case "ctrl": case "control": mods |= MOD_CONTROL; continue;
                     case "alt": mods |= MOD_ALT; continue;
-                    case "shift": case "mayús": mods |= MOD_SHIFT; continue;
+                    case "shift": mods |= MOD_SHIFT; continue;
                 }
-                if (key != Keys.None) return false;   // solo se admite una tecla normal
+                if (key != Keys.None) return false;   // only one regular key allowed
                 key = ParseKey(part);
                 if (key == Keys.None) return false;
             }
@@ -93,25 +89,25 @@ namespace AutoShortcut
         private static Keys ParseKey(string s)
         {
             if (s.Length == 0) return Keys.None;
-            // "1" -> Keys.D1 (el enum llama D0..D9 a la fila de números).
+            // "1" -> Keys.D1 (the enum calls the number row D0..D9).
             if (s.Length == 1 && s[0] >= '0' && s[0] <= '9') return Keys.D0 + (s[0] - '0');
 
             Keys k;
             if (Aliases.TryGetValue(s, out k)) return k;
             int dummy;
-            if (int.TryParse(s, out dummy)) return Keys.None;   // no aceptar códigos numéricos
+            if (int.TryParse(s, out dummy)) return Keys.None;   // don't accept numeric key codes
             if (Enum.TryParse(s, true, out k) && Enum.IsDefined(typeof(Keys), k) && (k & Keys.Modifiers) == 0)
                 return k;
             return Keys.None;
         }
 
-        // Texto para guardar: "Win+Shift+A".
+        // Text for saving: "Win+Shift+A".
         public override string ToString()
         {
             return string.Join("+", Parts(SaveNames));
         }
 
-        // Piezas para dibujar como teclas: { "Win", "Shift", "A" }.
+        // Pieces to draw as keycaps: { "Win", "Shift", "A" }.
         public string[] DisplayParts()
         {
             return Parts(ShowNames).ToArray();

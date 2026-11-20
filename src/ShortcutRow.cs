@@ -6,15 +6,15 @@ using System.Windows.Forms;
 
 namespace AutoShortcut
 {
-    // Una fila del pop-up, dibujada a mano: nombre a la izquierda y, a la derecha,
-    // las teclas como "keycaps" (atajos de teclas) o el destino en gris (atajos de abrir).
-    // Toda la fila es clicable.
+    // One row of the pop-up, drawn by hand: the name on the left and, on the right,
+    // the keys as keycaps (key shortcuts) or the target in gray (launch shortcuts).
+    // The whole row is clickable.
     internal sealed class ShortcutRow : Control
     {
         private readonly Shortcut _shortcut;
         private readonly Theme _theme;
-        private readonly string[] _keys;      // null si es de abrir
-        private readonly string _target;      // texto gris para los de abrir
+        private readonly string[] _keys;      // null for launch shortcuts
+        private readonly string _target;      // gray text for launch shortcuts
         private readonly Font _smallFont = new Font("Segoe UI", 8.25F);
         private bool _hover;
         private bool _pressed;
@@ -33,7 +33,7 @@ namespace AutoShortcut
             {
                 KeyCombo combo;
                 if (KeyCombo.TryParse(shortcut.KeysText, out combo)) _keys = combo.DisplayParts();
-                else _target = "combinación no válida";
+                else _target = "invalid key combination";
             }
 
             SetStyle(ControlStyles.UserPaint | ControlStyles.AllPaintingInWmPaint |
@@ -49,7 +49,7 @@ namespace AutoShortcut
 
         public Shortcut Shortcut { get { return _shortcut; } }
 
-        // Posición en la lista de la configuración (para editar, mover o borrar).
+        // Position in the config list (to edit, move or delete it).
         public readonly int Index;
 
         // "C:\x\y\app.exe" -> "app.exe", "https://www.github.com/x" -> "github.com".
@@ -115,7 +115,7 @@ namespace AutoShortcut
                 TextFormatFlags.EndEllipsis | TextFormatFlags.NoPrefix);
         }
 
-        // Dibuja las teclas de derecha a izquierda; devuelve dónde ha terminado.
+        // Draws the keycaps from right to left; returns where it ended.
         private int DrawKeys(Graphics g, int right, Rectangle r)
         {
             const TextFormatFlags flags = TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter |

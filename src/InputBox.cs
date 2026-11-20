@@ -5,9 +5,9 @@ using System.Windows.Forms;
 
 namespace AutoShortcut
 {
-    // Cuadro de texto al estilo Windows 11: 32 px de alto (como los botones), borde
-    // redondeado y una línea de color abajo cuando tiene el foco. Por dentro es un
-    // TextBox normal sin borde, centrado verticalmente.
+    // Windows 11-style text box: 32 px tall (like buttons), rounded border and a
+    // colored line at the bottom when focused. Inside it's a regular borderless
+    // TextBox, vertically centered.
     internal sealed class InputBox : Panel
     {
         private readonly Theme _theme;
@@ -57,7 +57,7 @@ namespace AutoShortcut
 
         private void LayoutBox()
         {
-            if (_box == null) return;   // WinForms llama a OnLayout desde el constructor, antes de crear _box
+            if (_box == null) return;   // WinForms calls OnLayout from the constructor, before _box exists
             int pad = Ui.S(10);
             _box.Width = Math.Max(0, Width - pad * 2);
             _box.Location = new Point(pad, (Height - _box.Height) / 2);
@@ -77,7 +77,7 @@ namespace AutoShortcut
             }
             if (_box.Focused)
             {
-                // Línea de acento abajo, dentro de las esquinas redondeadas.
+                // Accent line at the bottom, inside the rounded corners.
                 g.SmoothingMode = SmoothingMode.None;
                 using (SolidBrush accent = new SolidBrush(_theme.Accent))
                     g.FillRectangle(accent, Ui.S(3), Height - Ui.S(2), Width - Ui.S(6), Ui.S(2));

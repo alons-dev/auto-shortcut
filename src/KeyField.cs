@@ -4,8 +4,8 @@ using System.Windows.Forms;
 
 namespace AutoShortcut
 {
-    // Campo para elegir una combinación: se puede escribir ("Ctrl+Alt+T") o pulsar
-    // "Grabar" y hacerla con el teclado. Debajo dice si es válida y cómo se verá.
+    // Field to pick a key combination: type it ("Ctrl+Alt+T") or press "Record" and
+    // do it on the keyboard. Below it, it says whether it's valid and how it will look.
     internal sealed class KeyField : UserControl
     {
         private const int RecordTimeoutMs = 10000;
@@ -20,7 +20,7 @@ namespace AutoShortcut
 
         public event EventHandler ValueChanged;
 
-        // forHotkey: la tecla que abre AutoShortcut, que debe llevar Win, Ctrl o Alt.
+        // forHotkey: the combination that opens AutoShortcut, which must include Win, Ctrl or Alt.
         public KeyField(Theme theme, int width, bool forHotkey, string accessibleName)
         {
             _theme = theme;
@@ -39,7 +39,7 @@ namespace AutoShortcut
             };
 
             _record = new Button();
-            _record.Text = "Grabar";
+            _record.Text = "Record";
             Ui.StyleButton(_record, theme, false);
             _record.Bounds = new Rectangle(width - Ui.S(96), 0, Ui.S(96), input.Height);
             _record.Click += delegate
@@ -57,8 +57,8 @@ namespace AutoShortcut
             Controls.Add(_status);
             Size = new Size(width, _status.Bottom);
 
-            // El hook llama desde dentro del procesado de teclas: dejamos que termine
-            // y actualizamos la interfaz justo después (BeginInvoke).
+            // The hook calls us from inside key processing: let it finish and update
+            // the UI right after (BeginInvoke).
             _recorder.Recorded += delegate(KeyCombo combo)
             {
                 BeginInvoke((MethodInvoker)delegate
@@ -93,17 +93,17 @@ namespace AutoShortcut
             KeyCombo combo;
             if (Value.Length == 0)
             {
-                error = "Escríbela (p. ej. Ctrl+Alt+T) o pulsa Grabar.";
+                error = "Type it (e.g. Ctrl+Alt+T) or press Record.";
                 return null;
             }
             if (!KeyCombo.TryParse(Value, out combo))
             {
-                error = "No la entiendo. Ejemplo: Ctrl+Alt+T";
+                error = "Not a valid combination. Example: Ctrl+Alt+T";
                 return null;
             }
             if (_forHotkey && !(combo.Has(KeyCombo.MOD_WIN) || combo.Has(KeyCombo.MOD_CONTROL) || combo.Has(KeyCombo.MOD_ALT)))
             {
-                error = "Debe llevar Win, Ctrl o Alt (si no, chocaría con lo que escribes).";
+                error = "It must include Win, Ctrl or Alt (otherwise it would clash with your typing).";
                 return null;
             }
             return combo;
@@ -131,12 +131,12 @@ namespace AutoShortcut
             if (!_recorder.Start())
             {
                 _status.ForeColor = _theme.Error;
-                _status.Text = "Windows no ha dejado grabar. Escríbela a mano.";
+                _status.Text = "Windows didn't allow recording. Type it instead.";
                 return;
             }
-            _record.Text = "Parar";
+            _record.Text = "Stop";
             _status.ForeColor = _theme.Accent;
-            _status.Text = "Pulsa la combinación…  (Esc para cancelar)";
+            _status.Text = "Press the key combination…  (Esc to cancel)";
             _timeout.Start();
         }
 
@@ -144,7 +144,7 @@ namespace AutoShortcut
         {
             _timeout.Stop();
             _recorder.Stop();
-            _record.Text = "Grabar";
+            _record.Text = "Record";
             ShowStatus();
         }
 

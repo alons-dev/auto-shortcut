@@ -5,8 +5,8 @@ using System.Windows.Forms;
 
 namespace AutoShortcut
 {
-    // Botón cuadrado con un icono de la fuente de Windows (ver Ui.IconFont) y fondo
-    // redondeado al pasar el ratón, como los de la barra de título de Windows 11.
+    // Square button with an icon from the Windows icon font (see Ui.IconFont) and a
+    // rounded background on hover, like the title bar buttons in Windows 11.
     internal sealed class IconButton : Control
     {
         private readonly Theme _theme;
@@ -24,7 +24,7 @@ namespace AutoShortcut
             Size = new Size(Ui.S(32), Ui.S(32));
             Cursor = Cursors.Hand;
             BackColor = theme.Background;
-            Text = name;              // no se dibuja, pero es el nombre que leen los lectores de pantalla
+            Text = name;              // not drawn, but it's the name screen readers announce
             AccessibleName = name;
             AccessibleRole = AccessibleRole.PushButton;
         }

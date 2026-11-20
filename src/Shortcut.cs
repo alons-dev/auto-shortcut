@@ -1,8 +1,8 @@
 namespace AutoShortcut
 {
-    // Un atajo de la lista. Hay dos tipos:
-    //   - de teclas:   KeysText = "Win+Shift+S"  -> al hacer clic se pulsa esa combinación
-    //   - de abrir:    Run = "notepad.exe" o una URL o carpeta (Args opcional)
+    // One shortcut in the list. There are two kinds:
+    //   - keys:    KeysText = "Win+Shift+S"  -> clicking it presses that key combination
+    //   - launch:  Run = "notepad.exe", a URL or a folder (Args optional)
     internal sealed class Shortcut
     {
         public string Name;

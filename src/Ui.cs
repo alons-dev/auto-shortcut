@@ -6,11 +6,11 @@ using System.Windows.Forms;
 
 namespace AutoShortcut
 {
-    // Ayudas de dibujo y estilo comunes a todas las ventanas.
+    // Drawing and styling helpers shared by every window.
     internal static class Ui
     {
-        // La app es "DPI aware" (ver Program.cs): trabajamos en píxeles reales, así que
-        // las medidas pensadas a 100 % se multiplican por la escala de Windows.
+        // The app is DPI aware (see Program.cs): we work in real pixels, so sizes
+        // designed at 100 % are multiplied by the Windows display scale.
         public static readonly float Scale = ReadScale();
 
         private static float ReadScale()
@@ -18,7 +18,7 @@ namespace AutoShortcut
             using (Graphics g = Graphics.FromHwnd(IntPtr.Zero)) return g.DpiX / 96F;
         }
 
-        // Ui.S(40) = 40 px a 100 %, 60 px a 150 %, 80 px a 200 %...
+        // Ui.S(40) = 40 px at 100 %, 60 px at 150 %, 80 px at 200 %...
         public static int S(int value)
         {
             return (int)Math.Round(value * Scale);
@@ -36,11 +36,11 @@ namespace AutoShortcut
             return path;
         }
 
-        // ---- Marco de ventana (DWM) ----
+        // ---- Window frame (DWM) ----
 
-        // DWM (Desktop Window Manager) es quien dibuja los marcos de las ventanas.
-        // En Windows 11 le podemos pedir esquinas redondeadas y barra de título oscura.
-        // En Windows 10 estos atributos no existen: la llamada falla sin más.
+        // DWM (Desktop Window Manager) draws window frames. On Windows 11 we can ask
+        // it for rounded corners and a dark title bar. On Windows 10 these attributes
+        // don't exist: the call just fails.
         [DllImport("dwmapi.dll")]
         private static extern int DwmSetWindowAttribute(IntPtr hwnd, int attribute, ref int value, int size);
 
@@ -61,20 +61,20 @@ namespace AutoShortcut
             }
         }
 
-        // ---- Iconos ----
+        // ---- Icons ----
 
-        // Los iconos de Windows 11 son una fuente: "Segoe Fluent Icons" (en Windows 10,
-        // "Segoe MDL2 Assets"). Cada icono es un carácter, p. ej.  = "+".
+        // Windows 11 icons are a font: "Segoe Fluent Icons" ("Segoe MDL2 Assets" on
+        // Windows 10). Each icon is a character, e.g. U+E710 = "+".
         public static readonly Font IconFont = CreateIconFont();
-        public const string GlyphAdd = "";
-        public const string GlyphSettings = "";
-        public const string GlyphKeyboard = "";
+        public static readonly string GlyphAdd = ((char)0xE710).ToString();
+        public static readonly string GlyphSettings = ((char)0xE713).ToString();
+        public static readonly string GlyphKeyboard = ((char)0xE765).ToString();
 
         [DllImport("user32.dll")]
         private static extern bool DestroyIcon(IntPtr handle);
 
-        // Icono de la bandeja: el teclado de la fuente de iconos, blanco sobre barra
-        // de tareas oscura o negro sobre clara, como los iconos del propio Windows.
+        // Tray icon: the keyboard glyph, white on a dark taskbar or black on a light
+        // one, like Windows' own tray icons.
         public static Icon CreateTrayIcon()
         {
             int size = SystemInformation.SmallIconSize.Width;
@@ -91,7 +91,7 @@ namespace AutoShortcut
                     center.LineAlignment = StringAlignment.Center;
                     g.DrawString(GlyphKeyboard, font, brush, new RectangleF(0, 0, size, size), center);
                 }
-                // Icon.FromHandle no copia el icono: lo clonamos y liberamos el original.
+                // Icon.FromHandle doesn't copy the icon: clone it and free the original.
                 IntPtr handle = bmp.GetHicon();
                 try { using (Icon temp = Icon.FromHandle(handle)) return (Icon)temp.Clone(); }
                 finally { DestroyIcon(handle); }
@@ -103,13 +103,13 @@ namespace AutoShortcut
             foreach (string name in new[] { "Segoe Fluent Icons", "Segoe MDL2 Assets" })
             {
                 Font f = new Font(name, 10F);
-                if (f.Name == name) return f;   // si no existe, Windows devuelve otra fuente
+                if (f.Name == name) return f;   // if it doesn't exist, Windows substitutes another font
                 f.Dispose();
             }
             return new Font("Segoe UI Symbol", 10F);
         }
 
-        // ---- Controles con el tema ----
+        // ---- Themed controls ----
 
         public static void StyleButton(Button b, Theme t, bool primary)
         {

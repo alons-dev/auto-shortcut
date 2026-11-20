@@ -6,32 +6,32 @@ using System.Windows.Forms;
 
 namespace AutoShortcut
 {
-    // El pop-up: ventana sin bordes, siempre encima, en la esquina inferior derecha
-    // del monitor donde está el ratón. Muestra la lista de atajos; se oculta al
-    // perder el foco o con Esc.
+    // The pop-up: borderless, always-on-top window in the bottom-right corner of the
+    // monitor where the mouse is. It shows the shortcut list and hides when it loses
+    // focus or on Esc.
     //
-    // No modifica la lista: avisa con eventos (ShortcutInvoked, EditRequested...)
-    // y TrayApp decide qué hacer.
+    // It never changes the list itself: it raises events (ShortcutInvoked,
+    // EditRequested...) and TrayApp decides what to do.
     internal sealed class PopupForm : Form
     {
-        // Medidas a 100 % de escala (se multiplican con Ui.S).
+        // Sizes at 100 % scale (multiplied with Ui.S).
         private const int PopupWidth = 360;
         private const int HeaderHeight = 48;
         private const int RowHeight = 40;
         private const int SidePad = 6;
         private const int BottomPad = 8;
         private const int MaxListHeight = 480;
-        private const int EdgeGap = 12;   // separación con el borde de la pantalla y la barra de tareas
+        private const int EdgeGap = 12;   // gap to the screen edge and the taskbar
 
         [DllImport("user32.dll")]
         private static extern IntPtr GetForegroundWindow();
 
-        // Barra de desplazamiento oscura (el mismo truco que usa el Explorador).
+        // Dark scrollbar (same trick File Explorer uses).
         [DllImport("uxtheme.dll", CharSet = CharSet.Unicode)]
         private static extern int SetWindowTheme(IntPtr hwnd, string appName, string idList);
 
-        private const int WS_EX_TOOLWINDOW = 0x80;   // fuera de Alt+Tab y de la barra de tareas
-        private const int CS_DROPSHADOW = 0x20000;   // sombra suave, como los menús
+        private const int WS_EX_TOOLWINDOW = 0x80;   // keep it out of Alt+Tab and the taskbar
+        private const int CS_DROPSHADOW = 0x20000;   // soft shadow, like menus
 
         private readonly Theme _theme;
         private readonly Label _title;
@@ -47,19 +47,19 @@ namespace AutoShortcut
         private DateTime _hiddenAt = DateTime.MinValue;
         private IntPtr _previousWindow;
 
-        public event Action<Shortcut> ShortcutInvoked;   // clic en un atajo
-        public event Action AddRequested;                 // botón +
-        public event Action SettingsRequested;            // botón de configuración
-        public event Action<int> EditRequested;           // menú > Editar (índice)
-        public event Action<int> DeleteRequested;         // menú > Borrar
-        public event Action<int, int> MoveRequested;      // menú > Mover (índice, -1 arriba / +1 abajo)
+        public event Action<Shortcut> ShortcutInvoked;   // click on a shortcut
+        public event Action AddRequested;                 // + button
+        public event Action SettingsRequested;            // settings button
+        public event Action<int> EditRequested;           // menu > Edit (index)
+        public event Action<int> DeleteRequested;         // menu > Delete
+        public event Action<int, int> MoveRequested;      // menu > Move (index, -1 up / +1 down)
 
         public PopupForm()
         {
             _theme = Theme.Current();
 
             SuspendLayout();
-            AutoScaleMode = AutoScaleMode.None;   // escalamos a mano con Ui.S
+            AutoScaleMode = AutoScaleMode.None;   // we scale by hand with Ui.S
             Text = "AutoShortcut";
             FormBorderStyle = FormBorderStyle.None;
             ShowInTaskbar = false;
@@ -71,7 +71,7 @@ namespace AutoShortcut
             ForeColor = _theme.Foreground;
 
             _title = new Label();
-            _title.Text = "Atajos";
+            _title.Text = "Shortcuts";
             _title.Font = new Font("Segoe UI Semibold", 12F);
             _title.AutoSize = true;
             _title.Location = new Point(Ui.S(16), Ui.S(12));
@@ -81,13 +81,13 @@ namespace AutoShortcut
             _hotkeyLabel.ForeColor = _theme.Subtle;
             _hotkeyLabel.Font = new Font("Segoe UI", 8.25F);
 
-            _addButton = new IconButton(Ui.GlyphAdd, "Añadir atajo", _theme);
+            _addButton = new IconButton(Ui.GlyphAdd, "Add shortcut", _theme);
             _addButton.Click += delegate { Raise(AddRequested); };
-            _tips.SetToolTip(_addButton, "Añadir atajo  (clic derecho en uno para editarlo)");
+            _tips.SetToolTip(_addButton, "Add shortcut  (right-click one to edit it)");
 
-            _settingsButton = new IconButton(Ui.GlyphSettings, "Configuración", _theme);
+            _settingsButton = new IconButton(Ui.GlyphSettings, "Settings", _theme);
             _settingsButton.Click += delegate { Raise(SettingsRequested); };
-            _tips.SetToolTip(_settingsButton, "Configuración");
+            _tips.SetToolTip(_settingsButton, "Settings");
 
             _list = new Panel();
             _list.AutoScroll = true;
@@ -97,14 +97,14 @@ namespace AutoShortcut
                 SetWindowTheme(_list.Handle, _theme.Dark ? "DarkMode_Explorer" : "Explorer", null);
             };
 
-            // Menú de clic derecho sobre un atajo.
+            // Right-click menu on a shortcut.
             _rowMenu = new ContextMenuStrip();
             MenuRenderer.Apply(_rowMenu, _theme);
-            _rowMenu.Items.Add("Editar", null, delegate { RaiseForMenuRow(EditRequested); });
-            _moveUpItem = _rowMenu.Items.Add("Mover arriba", null, delegate { RaiseMove(-1); });
-            _moveDownItem = _rowMenu.Items.Add("Mover abajo", null, delegate { RaiseMove(+1); });
+            _rowMenu.Items.Add("Edit", null, delegate { RaiseForMenuRow(EditRequested); });
+            _moveUpItem = _rowMenu.Items.Add("Move up", null, delegate { RaiseMove(-1); });
+            _moveDownItem = _rowMenu.Items.Add("Move down", null, delegate { RaiseMove(+1); });
             _rowMenu.Items.Add(new ToolStripSeparator());
-            _rowMenu.Items.Add("Borrar", null, delegate { RaiseForMenuRow(DeleteRequested); });
+            _rowMenu.Items.Add("Delete", null, delegate { RaiseForMenuRow(DeleteRequested); });
             _rowMenu.Opening += delegate
             {
                 ShortcutRow row = _rowMenu.SourceControl as ShortcutRow;
@@ -122,7 +122,7 @@ namespace AutoShortcut
             SetShortcuts(new List<Shortcut>(), "");
         }
 
-        // La ventana que estaba delante antes de abrir el pop-up: ahí van las teclas.
+        // The window that was in front before the pop-up opened: keys are sent there.
         public IntPtr PreviousWindow { get { return _previousWindow; } }
 
         public void SetShortcuts(IList<Shortcut> shortcuts, string hotkeyText)
@@ -142,7 +142,7 @@ namespace AutoShortcut
             if (shortcuts.Count == 0)
             {
                 Label empty = new Label();
-                empty.Text = "Todavía no hay atajos. Añade uno con +";
+                empty.Text = "No shortcuts yet. Add one with +";
                 empty.ForeColor = _theme.Subtle;
                 empty.AutoSize = true;
                 empty.Location = new Point(Ui.S(10), Ui.S(4));
@@ -151,8 +151,8 @@ namespace AutoShortcut
             }
             else
             {
-                // Con Dock = Top, el último control añadido queda arriba:
-                // por eso se añaden de abajo arriba.
+                // With Dock = Top the last control added ends up on top,
+                // so rows are added from the bottom up.
                 for (int i = shortcuts.Count - 1; i >= 0; i--)
                 {
                     ShortcutRow row = new ShortcutRow(shortcuts[i], i, _theme);
@@ -167,7 +167,7 @@ namespace AutoShortcut
                 listHeight = Math.Min(shortcuts.Count * rowHeight, maxHeight);
             }
 
-            // Cabecera: "Atajos  Win + Shift + A"  ...  [+] [⚙]
+            // Header: "Shortcuts  Win + Shift + A"  ...  [+] [gear]
             _hotkeyLabel.Text = hotkeyText ?? "";
             _hotkeyLabel.Location = new Point(_title.Left + _title.PreferredWidth + Ui.S(6), Ui.S(18));
             _settingsButton.Location = new Point(width - Ui.S(8) - _settingsButton.Width, Ui.S(8));
@@ -178,7 +178,7 @@ namespace AutoShortcut
 
             _list.ResumeLayout(true);
             ResumeLayout(true);
-            if (Visible) PlaceBottomRight();   // ha cambiado de alto: recolocar
+            if (Visible) PlaceBottomRight();   // height changed: reposition
         }
 
         private void OnRowClick(object sender, MouseEventArgs e)
@@ -189,8 +189,8 @@ namespace AutoShortcut
             if (handler != null) handler(row.Shortcut);
         }
 
-        // Los eventos del menú se lanzan cuando el menú ya se ha cerrado (BeginInvoke):
-        // así se puede abrir una ventana o rehacer la lista sin pisarlo.
+        // Menu events are raised once the menu has closed (BeginInvoke), so the
+        // handler can open a window or rebuild the list without stepping on it.
         private void RaiseForMenuRow(Action<int> handler)
         {
             ShortcutRow row = _rowMenu.SourceControl as ShortcutRow;
@@ -237,14 +237,14 @@ namespace AutoShortcut
                 HidePopup();
                 return;
             }
-            // Al hacer clic en el icono de la bandeja con el pop-up abierto, primero
-            // se pierde el foco (y se oculta) y luego llega el clic: no reabrirlo.
+            // When the tray icon is clicked while the pop-up is open, the pop-up first
+            // loses focus (and hides) and then the click arrives: don't reopen it.
             if ((DateTime.Now - _hiddenAt).TotalMilliseconds < 300) return;
             ShowPopup(true);
         }
 
-        // rememberWindow = false al volver de un diálogo nuestro: la ventana "de antes"
-        // sigue siendo la que había al abrir el pop-up la primera vez.
+        // rememberWindow = false when coming back from one of our dialogs: the
+        // "previous" window is still the one that was in front when the pop-up first opened.
         public void ShowPopup(bool rememberWindow)
         {
             if (!Visible && rememberWindow) _previousWindow = GetForegroundWindow();
@@ -264,7 +264,7 @@ namespace AutoShortcut
 
         private void PlaceBottomRight()
         {
-            // WorkingArea es la pantalla sin la barra de tareas.
+            // WorkingArea is the screen minus the taskbar.
             Rectangle area = Screen.FromPoint(Cursor.Position).WorkingArea;
             int gap = Ui.S(EdgeGap);
             Location = new Point(area.Right - Width - gap, area.Bottom - Height - gap);
@@ -282,7 +282,7 @@ namespace AutoShortcut
             if (e.KeyCode == Keys.Escape) HidePopup();
         }
 
-        // Cerrar la ventana (Alt+F4) solo la oculta: la app sigue en la bandeja.
+        // Closing the window (Alt+F4) only hides it: the app keeps running in the tray.
         protected override void OnFormClosing(FormClosingEventArgs e)
         {
             if (e.CloseReason == CloseReason.UserClosing)

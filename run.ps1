@@ -1,22 +1,22 @@
-# Arranca AutoShortcut directamente desde el codigo fuente, sin crear ningun .exe.
+# Starts AutoShortcut straight from the source code, without creating any .exe.
 #
 #   powershell -WindowStyle Hidden -ExecutionPolicy Bypass -File .\run.ps1
 #
-# Windows PowerShell (firmado por Microsoft) compila src\*.cs en memoria con Add-Type
-# y llama a Program.Main. Asi Smart App Control no tiene ningun .exe sin firmar que
-# bloquear. Tarda 1-2 s en arrancar por la compilacion.
+# Windows PowerShell (signed by Microsoft) compiles src\*.cs in memory with Add-Type
+# and calls Program.Main. That way Smart App Control has no unsigned .exe to block.
+# Startup takes 1-2 s because of the compilation.
 
 $ErrorActionPreference = 'Stop'
 
-# PowerShell 7 (pwsh) usa .NET moderno, sin System.Web.Extensions ni el WinForms de .NET Framework.
+# PowerShell 7 (pwsh) runs on modern .NET, without System.Web.Extensions or the .NET Framework WinForms.
 if ($PSVersionTable.PSEdition -eq 'Core') {
-    throw 'run.ps1 necesita Windows PowerShell: powershell -ExecutionPolicy Bypass -File .\run.ps1'
+    throw 'run.ps1 needs Windows PowerShell: powershell -ExecutionPolicy Bypass -File .\run.ps1'
 }
 
 $src = Join-Path $PSScriptRoot 'src'
 $files = Get-ChildItem $src -Filter *.cs | ForEach-Object { $_.FullName }
 
-# Las clases son "internal": Add-Type avisa de que no son publicas; es lo esperado.
+# The classes are "internal": Add-Type warns that they aren't public; that's expected.
 Add-Type -Path $files -ReferencedAssemblies System.Windows.Forms, System.Drawing, System.Web.Extensions -WarningAction SilentlyContinue
 
 $program = [AppDomain]::CurrentDomain.GetAssemblies() |

@@ -1,12 +1,12 @@
-# AutoShortcut - desinstalador
+# AutoShortcut - uninstaller
 #
-#   Desde Configuracion > Aplicaciones > AutoShortcut > Desinstalar, o:
+#   From Settings > Apps > AutoShortcut > Uninstall, or:
 #   & "$env:LOCALAPPDATA\Programs\AutoShortcut\uninstall.ps1"
 #
-#   -RemoveSettings   borra tambien tu lista de atajos (%APPDATA%\AutoShortcut)
-#   -Quiet            no espera a que pulses una tecla al terminar
+#   -RemoveSettings   also deletes your shortcut list (%APPDATA%\AutoShortcut)
+#   -Quiet            doesn't wait for a key press at the end
 #
-# Solo ASCII a proposito (ver install.ps1).
+# ASCII-only on purpose (see install.ps1).
 
 param(
     [switch]$RemoveSettings,
@@ -19,46 +19,46 @@ $Settings = Join-Path $env:APPDATA 'AutoShortcut'
 $RegKey   = 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Uninstall\AutoShortcut'
 
 Write-Host ''
-Write-Host 'Desinstalando AutoShortcut' -ForegroundColor Cyan
+Write-Host 'Uninstalling AutoShortcut' -ForegroundColor Cyan
 
-# 1. Cerrar la app
-Write-Host '  - Cerrando AutoShortcut'
+# 1. Close the app
+Write-Host '  - Closing AutoShortcut'
 Get-CimInstance Win32_Process -Filter "Name='powershell.exe'" |
     Where-Object { $_.CommandLine -match 'run\.ps1' -and $_.CommandLine -match 'AutoShortcut|auto-shortcut' } |
     ForEach-Object { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue }
 Get-Process -Name AutoShortcut -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue
 Start-Sleep -Milliseconds 500
 
-# 2. Accesos directos y registro
-Write-Host '  - Quitando accesos directos y el registro en Aplicaciones'
-# Rutas fijas: GetFolderPath devuelve una cadena vacia si la carpeta no existe.
+# 2. Shortcuts and registry entry
+Write-Host '  - Removing shortcuts and the Apps entry'
+# Fixed paths: GetFolderPath returns an empty string if the folder doesn't exist.
 $programs = Join-Path $env:APPDATA 'Microsoft\Windows\Start Menu\Programs'
 Remove-Item (Join-Path $programs 'AutoShortcut.lnk') -Force -ErrorAction SilentlyContinue
 Remove-Item (Join-Path $programs 'Startup\AutoShortcut.lnk') -Force -ErrorAction SilentlyContinue
 Remove-Item $RegKey -Recurse -Force -ErrorAction SilentlyContinue
 
-# 3. Archivos de la app. Si la terminal esta dentro de esa carpeta, Windows no deja
-#    borrarla: solo en ese caso nos vamos a la carpeta del usuario. (Si se lanza con &,
-#    el cambio de carpeta afecta a la sesion de quien lo ejecuta: no hacerlo sin motivo.)
-Write-Host "  - Borrando $AppDir"
+# 3. App files. Windows won't delete the folder while the terminal is inside it, so
+#    only in that case move to the user's folder. (When run with &, changing the
+#    location affects the caller's session: don't do it without a reason.)
+Write-Host "  - Deleting $AppDir"
 if ((Get-Location).ProviderPath -like "$AppDir*") { Set-Location $HOME }
 Remove-Item $AppDir -Recurse -Force -ErrorAction SilentlyContinue
 
-# 4. Tu lista de atajos se conserva salvo que se pida lo contrario
+# 4. Your shortcut list is kept unless asked otherwise
 if ($RemoveSettings) {
-    Write-Host "  - Borrando tu lista de atajos ($Settings)"
+    Write-Host "  - Deleting your shortcut list ($Settings)"
     Remove-Item $Settings -Recurse -Force -ErrorAction SilentlyContinue
 }
 
 Write-Host ''
-Write-Host 'AutoShortcut se ha desinstalado.' -ForegroundColor Green
+Write-Host 'AutoShortcut has been uninstalled.' -ForegroundColor Green
 if (-not $RemoveSettings -and (Test-Path $Settings)) {
-    Write-Host "  Tu lista de atajos sigue en $Settings por si vuelves a instalarlo."
-    Write-Host '  Para borrarla tambien:  Remove-Item "$env:APPDATA\AutoShortcut" -Recurse -Force'
+    Write-Host "  Your shortcut list is still in $Settings in case you reinstall it."
+    Write-Host '  To delete it too:  Remove-Item "$env:APPDATA\AutoShortcut" -Recurse -Force'
 }
 Write-Host ''
 
 if (-not $Quiet -and $Host.Name -eq 'ConsoleHost') {
-    Write-Host 'Pulsa una tecla para cerrar...'
+    Write-Host 'Press any key to close...'
     try { [void]$Host.UI.RawUI.ReadKey('NoEcho,IncludeKeyDown') } catch { }
 }

@@ -5,14 +5,14 @@ using System.Windows.Forms;
 
 namespace AutoShortcut
 {
-    // Ventana para crear o editar un atajo.
+    // Window to create or edit a shortcut.
     //
-    //   Nombre        [Capturar pantalla          ]
-    //   Al hacer clic (•) Pulsar unas teclas
-    //                 ( ) Abrir un programa, archivo, carpeta o web
-    //   Teclas        [Win+Shift+S        ] [Grabar]
+    //   Name          [Capture the screen         ]
+    //   On click      (•) Press keys
+    //                 ( ) Open a program, file, folder or website
+    //   Keys          [Win+Shift+S        ] [Record]
     //                 ✓ Win + Shift + S
-    //                                 [Cancelar] [Guardar]
+    //                                     [Cancel] [Save]
     internal sealed class EditorForm : ThemedDialog
     {
         private const int LabelX = 16;
@@ -30,32 +30,32 @@ namespace AutoShortcut
 
         public Shortcut Result;
 
-        // existing == null: atajo nuevo.
+        // existing == null: new shortcut.
         public EditorForm(Shortcut existing, Theme theme)
-            : base(theme, existing == null ? "Nuevo atajo" : "Editar atajo", 480, 268)
+            : base(theme, existing == null ? "New shortcut" : "Edit shortcut", 480, 268)
         {
-            AddLabel("Nombre", LabelX, 18);
-            _name = AddTextBox(FieldX, 18, FieldW, "Nombre");
+            AddLabel("Name", LabelX, 18);
+            _name = AddTextBox(FieldX, 18, FieldW, "Name");
 
-            AddLabel("Al hacer clic", LabelX, 60);
-            _keysMode = AddRadio("Pulsar unas teclas", 58);
-            _runMode = AddRadio("Abrir un programa, archivo, carpeta o web", 82);
+            AddLabel("On click", LabelX, 60);
+            _keysMode = AddRadio("Press keys", 58);
+            _runMode = AddRadio("Open a program, file, folder or website", 82);
 
-            // Modo teclas
-            _keysLabel = AddLabel("Teclas", LabelX, 120);
-            _keys = new KeyField(theme, Ui.S(FieldX + FieldW) - Ui.S(FieldX), false, "Teclas");
+            // Keys mode
+            _keysLabel = AddLabel("Keys", LabelX, 120);
+            _keys = new KeyField(theme, Ui.S(FieldW), false, "Keys");
             _keys.Location = new Point(Ui.S(FieldX), Ui.S(120));
             Controls.Add(_keys);
 
-            // Modo abrir
-            Label runLabel = AddLabel("Abrir", LabelX, 120);
-            _run = AddTextBox(FieldX, 120, FieldW - 104, "Abrir");
-            Button browse = AddButton("Examinar…", FieldX + FieldW - 96, 120, 96, false);
+            // Launch mode
+            Label runLabel = AddLabel("Open", LabelX, 120);
+            _run = AddTextBox(FieldX, 120, FieldW - 104, "Open");
+            Button browse = AddButton("Browse…", FieldX + FieldW - 96, 120, 96, false);
             browse.Click += delegate { Browse(); };
-            Label argsLabel = AddLabel("Argumentos", LabelX, 164);
-            _args = AddTextBox(FieldX, 164, FieldW, "Argumentos");
-            Label argsNote = AddNote("Opcional. Admite variables como %USERPROFILE%.", FieldX, 199, FieldW);
-            // _run y _args viven dentro de su InputBox (Parent): se oculta el cuadro entero.
+            Label argsLabel = AddLabel("Arguments", LabelX, 164);
+            _args = AddTextBox(FieldX, 164, FieldW, "Arguments");
+            Label argsNote = AddNote("Optional. Supports variables like %USERPROFILE%.", FieldX, 199, FieldW);
+            // _run and _args live inside their InputBox (Parent): hide the whole box.
             _runControls = new Control[] { runLabel, _run.Parent, browse, argsLabel, _args.Parent, argsNote };
 
             _keysMode.CheckedChanged += delegate { UpdateMode(); };
@@ -107,9 +107,9 @@ namespace AutoShortcut
         {
             using (OpenFileDialog dlg = new OpenFileDialog())
             {
-                dlg.Title = "Elige qué abrir";
-                dlg.Filter = "Programas y accesos directos|*.exe;*.lnk;*.bat;*.cmd;*.ps1|Todos los archivos|*.*";
-                dlg.DereferenceLinks = false;   // guardar el .lnk, no su destino
+                dlg.Title = "Choose what to open";
+                dlg.Filter = "Programs and shortcuts|*.exe;*.lnk;*.bat;*.cmd;*.ps1|All files|*.*";
+                dlg.DereferenceLinks = false;   // keep the .lnk, not its target
                 if (dlg.ShowDialog(this) != DialogResult.OK) return;
                 _run.Text = dlg.FileName;
                 if (_name.Text.Trim().Length == 0) _name.Text = Path.GetFileNameWithoutExtension(dlg.FileName);
@@ -120,18 +120,18 @@ namespace AutoShortcut
         {
             Shortcut s = new Shortcut();
             s.Name = _name.Text.Trim();
-            if (s.Name.Length == 0) return "Ponle un nombre.";
+            if (s.Name.Length == 0) return "Give it a name.";
 
             if (_keysMode.Checked)
             {
                 KeyCombo combo;
-                if (!KeyCombo.TryParse(_keys.Value, out combo)) return "Revisa las teclas.";
+                if (!KeyCombo.TryParse(_keys.Value, out combo)) return "Check the keys.";
                 s.KeysText = combo.ToString();
             }
             else
             {
                 s.Run = _run.Text.Trim();
-                if (s.Run.Length == 0) return "Indica qué abrir.";
+                if (s.Run.Length == 0) return "Choose what to open.";
                 string args = _args.Text.Trim();
                 s.Args = args.Length == 0 ? null : args;
             }
@@ -142,7 +142,7 @@ namespace AutoShortcut
         protected override void OnDeactivate(EventArgs e)
         {
             base.OnDeactivate(e);
-            _keys.StopRecording();   // nunca dejar el hook activo sin la ventana delante
+            _keys.StopRecording();   // never leave the hook active without the window in front
         }
     }
 }

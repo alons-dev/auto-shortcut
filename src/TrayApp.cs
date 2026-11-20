@@ -6,9 +6,9 @@ using System.Windows.Forms;
 
 namespace AutoShortcut
 {
-    // La aplicación en sí: no tiene ventana principal. Vive en la bandeja del sistema
-    // y une las piezas: configuración (JSON) + hotkey global + pop-up + ejecutar atajos
-    // + editor.
+    // The application itself: it has no main window. It lives in the system tray and
+    // ties the pieces together: config (JSON) + global hotkey + pop-up + running
+    // shortcuts + editor.
     internal sealed class TrayApp : ApplicationContext
     {
         private const string AppName = "AutoShortcut";
@@ -18,22 +18,22 @@ namespace AutoShortcut
         private readonly NotifyIcon _tray = new NotifyIcon();
 
         private Config _config;
-        private string _loadError;            // si el archivo tenía un error al leerlo
-        private DateTime _configStamp;        // fecha del archivo cuando se leyó
-        private string _registeredHotkey;     // la que está registrada ahora mismo
-        private bool _inDialog;               // hay una ventana de edición abierta
+        private string _loadError;            // set if the file had an error when read
+        private DateTime _configStamp;        // file timestamp when it was read
+        private string _registeredHotkey;     // the hotkey currently registered
+        private bool _inDialog;               // an editing window is open
 
         public TrayApp()
         {
             Theme theme = Theme.Current();
             ContextMenuStrip menu = new ContextMenuStrip();
             MenuRenderer.Apply(menu, theme);
-            menu.Items.Add("Mostrar", null, delegate { OpenPopup(); });
-            menu.Items.Add("Añadir atajo…", null, delegate { EditShortcut(-1); });
-            menu.Items.Add("Configuración…", null, delegate { OpenSettings(); });
-            menu.Items.Add("Editar shortcuts.json", null, delegate { EditConfigFile(); });
+            menu.Items.Add("Show", null, delegate { OpenPopup(); });
+            menu.Items.Add("Add shortcut…", null, delegate { EditShortcut(-1); });
+            menu.Items.Add("Settings…", null, delegate { OpenSettings(); });
+            menu.Items.Add("Edit shortcuts.json", null, delegate { EditConfigFile(); });
             menu.Items.Add(new ToolStripSeparator());
-            menu.Items.Add("Salir", null, delegate { ExitThread(); });
+            menu.Items.Add("Exit", null, delegate { ExitThread(); });
 
             _tray.Icon = Ui.CreateTrayIcon();
             _tray.Text = AppName;
@@ -77,9 +77,9 @@ namespace AutoShortcut
             if (error != null) Notify(error, ToolTipIcon.Error);
         }
 
-        // ---- Editar la lista ----
+        // ---- Editing the list ----
 
-        // Oculta el pop-up, abre una ventana nuestra y al terminar vuelve al pop-up.
+        // Hides the pop-up, opens one of our windows and comes back to the pop-up after.
         private void RunDialog(Action dialog)
         {
             if (_inDialog) return;
@@ -120,19 +120,19 @@ namespace AutoShortcut
             RunDialog(delegate
             {
                 string name = _config.Shortcuts[index].Name;
-                if (!Ask("¿Borrar el atajo \"" + name + "\"?", MessageBoxIcon.Question)) return;
+                if (!Ask("Delete the shortcut \"" + name + "\"?", MessageBoxIcon.Question)) return;
                 if (!ConfirmOverwriteBrokenFile()) return;
                 _config.Shortcuts.RemoveAt(index);
                 SaveConfig();
             });
         }
 
-        // Mover no abre ninguna ventana: el pop-up sigue abierto y se redibuja.
+        // Moving opens no window: the pop-up stays open and redraws.
         private void MoveShortcut(int index, int delta)
         {
             int target = index + delta;
             if (index < 0 || target < 0 || index >= _config.Shortcuts.Count || target >= _config.Shortcuts.Count) return;
-            if (_loadError != null) return;   // no reescribir un archivo con errores sin preguntar
+            if (_loadError != null) return;   // don't overwrite a broken file without asking
             Shortcut item = _config.Shortcuts[index];
             _config.Shortcuts.RemoveAt(index);
             _config.Shortcuts.Insert(target, item);
@@ -148,13 +148,13 @@ namespace AutoShortcut
             });
         }
 
-        // Devuelve null si la nueva combinación ya está registrada y guardada,
-        // o el motivo por el que no se ha podido.
+        // Returns null if the new combination is registered and saved,
+        // or the reason it couldn't be.
         private string TryChangeHotkey(string text)
         {
             KeyCombo combo;
-            if (!KeyCombo.TryParse(text, out combo)) return "Revisa la combinación.";
-            if (!ConfirmOverwriteBrokenFile()) return "No se ha guardado.";
+            if (!KeyCombo.TryParse(text, out combo)) return "Check the key combination.";
+            if (!ConfirmOverwriteBrokenFile()) return "Not saved.";
 
             string wanted = combo.ToString();
             if (wanted != _registeredHotkey)
@@ -163,8 +163,8 @@ namespace AutoShortcut
                 if (_registeredHotkey != null) KeyCombo.TryParse(_registeredHotkey, out previous);
                 if (!_hotkey.Register(combo))
                 {
-                    if (previous != null) _hotkey.Register(previous);   // no quedarnos sin ninguna
-                    return wanted + " ya la usa otra aplicación. Prueba otra.";
+                    if (previous != null) _hotkey.Register(previous);   // never end up with none
+                    return wanted + " is already used by another app. Try another one.";
                 }
                 _registeredHotkey = wanted;
             }
@@ -176,13 +176,13 @@ namespace AutoShortcut
         private bool ConfirmOverwriteBrokenFile()
         {
             if (_loadError == null) return true;
-            return Ask("shortcuts.json tiene un error (" + _loadError + ").\n\n" +
-                "Si guardas, se sustituirá por la lista que ves en AutoShortcut y se perderán " +
-                "los cambios hechos a mano. ¿Continuar?", MessageBoxIcon.Warning);
+            return Ask("shortcuts.json has an error (" + _loadError + ").\n\n" +
+                "If you save, it will be replaced with the list shown in AutoShortcut and " +
+                "any changes made by hand will be lost. Continue?", MessageBoxIcon.Warning);
         }
 
-        // Pregunta Sí/No (por defecto No). La ventana dueña, invisible y "siempre encima",
-        // hace que el mensaje no quede tapado por otras ventanas.
+        // Yes/No question (No by default). The invisible, always-on-top owner window
+        // keeps the message from ending up behind other windows.
         private static bool Ask(string text, MessageBoxIcon icon)
         {
             using (Form owner = new Form())
@@ -195,7 +195,7 @@ namespace AutoShortcut
             }
         }
 
-        // ---- Configuración ----
+        // ---- Configuration ----
 
         private void ReloadIfChanged()
         {
@@ -216,10 +216,10 @@ namespace AutoShortcut
             }
             catch (Exception ex)
             {
-                // No machacamos el archivo del usuario: seguimos con la última lista buena.
+                // Don't overwrite the user's file: keep using the last good list.
                 if (_config == null) _config = Config.CreateDefault();
                 _loadError = ex.Message;
-                Notify("shortcuts.json tiene un error y no se ha cargado: " + ex.Message, ToolTipIcon.Error);
+                Notify("shortcuts.json has an error and was not loaded: " + ex.Message, ToolTipIcon.Error);
             }
             _configStamp = FileStamp();
             ApplyConfig();
@@ -234,7 +234,7 @@ namespace AutoShortcut
             }
             catch (Exception ex)
             {
-                Notify("No se ha podido guardar shortcuts.json: " + ex.Message, ToolTipIcon.Error);
+                Notify("Couldn't save shortcuts.json: " + ex.Message, ToolTipIcon.Error);
             }
             _configStamp = FileStamp();
             ApplyConfig();
@@ -248,12 +248,12 @@ namespace AutoShortcut
             {
                 _hotkey.Unregister();
                 _registeredHotkey = null;
-                label = "Tecla no válida";
-                Notify("La tecla \"" + _config.Hotkey + "\" no es válida. Cámbiala en Configuración.", ToolTipIcon.Warning);
+                label = "Invalid shortcut";
+                Notify("The shortcut \"" + _config.Hotkey + "\" is not valid. Change it in Settings.", ToolTipIcon.Warning);
             }
             else if (combo.ToString() == _registeredHotkey)
             {
-                label = string.Join(" + ", combo.DisplayParts());   // sin cambios
+                label = string.Join(" + ", combo.DisplayParts());   // unchanged
             }
             else if (_hotkey.Register(combo))
             {
@@ -263,12 +263,12 @@ namespace AutoShortcut
             else
             {
                 _registeredHotkey = null;
-                label = combo + " ocupada";
-                Notify(combo + " ya la usa otra aplicación. Elige otra en Configuración " +
-                       "(botón de la rueda del panel). Mientras, ábrelo con clic aquí.", ToolTipIcon.Warning);
+                label = combo + " in use";
+                Notify(combo + " is already used by another app. Pick another one in Settings " +
+                       "(gear button in the panel). Meanwhile, open it by clicking here.", ToolTipIcon.Warning);
             }
 
-            _tray.Text = Truncate(AppName + " (" + label + ")", 63);   // límite de Windows
+            _tray.Text = Truncate(AppName + " (" + label + ")", 63);   // Windows limit
             _popup.SetShortcuts(_config.Shortcuts, label);
         }
 
@@ -281,7 +281,7 @@ namespace AutoShortcut
             }
             catch (Exception ex)
             {
-                Notify("No se pudo abrir el Bloc de notas: " + ex.Message, ToolTipIcon.Error);
+                Notify("Couldn't open Notepad: " + ex.Message, ToolTipIcon.Error);
             }
         }
 
@@ -298,7 +298,7 @@ namespace AutoShortcut
         protected override void ExitThreadCore()
         {
             _hotkey.Dispose();
-            _tray.Visible = false;   // si no, el icono se queda "fantasma" hasta pasar el ratón
+            _tray.Visible = false;   // otherwise a "ghost" icon stays until the mouse passes over it
             _tray.Dispose();
             _popup.Dispose();
             base.ExitThreadCore();

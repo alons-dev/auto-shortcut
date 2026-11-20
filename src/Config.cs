@@ -7,19 +7,19 @@ using System.Web.Script.Serialization;
 
 namespace AutoShortcut
 {
-    // La configuración vive en %APPDATA%\AutoShortcut\shortcuts.json:
+    // The configuration lives in %APPDATA%\AutoShortcut\shortcuts.json:
     //
     //   {
     //     "hotkey": "Win+Shift+A",
     //     "shortcuts": [
-    //       { "name": "Capturar una zona", "keys": "Win+Shift+S" },
-    //       { "name": "Bloc de notas", "run": "notepad.exe" }
+    //       { "name": "Capture part of the screen", "keys": "Win+Shift+S" },
+    //       { "name": "Notepad", "run": "notepad.exe" }
     //     ]
     //   }
     //
-    // Para leer usamos JavaScriptSerializer, que viene con .NET Framework
-    // (System.Web.Extensions.dll). Para escribir generamos el texto a mano:
-    // así queda con sangría y un atajo por línea, cómodo de editar.
+    // Reading uses JavaScriptSerializer, which ships with .NET Framework
+    // (System.Web.Extensions.dll). Writing builds the text by hand so the file
+    // is indented with one shortcut per line, easy to edit.
     internal sealed class Config
     {
         public const string DefaultHotkey = "Win+Shift+A";
@@ -43,8 +43,8 @@ namespace AutoShortcut
             get { return Path.Combine(Folder, "shortcuts.json"); }
         }
 
-        // La primera vez crea el archivo con unos atajos de ejemplo.
-        // Si el archivo tiene un error lanza FormatException y NO lo toca.
+        // The first time, creates the file with some example shortcuts.
+        // If the file has an error, throws FormatException and leaves it untouched.
         public static Config Load()
         {
             if (!File.Exists(FilePath))
@@ -59,8 +59,8 @@ namespace AutoShortcut
         public void Save()
         {
             Directory.CreateDirectory(Folder);
-            // Escribir en un temporal y luego reemplazar: si algo falla a mitad,
-            // el archivo bueno sigue ahí.
+            // Write to a temp file and then swap it in: if something fails halfway,
+            // the good file is still there.
             string tmp = FilePath + ".tmp";
             File.WriteAllText(tmp, ToJson(), new UTF8Encoding(false));
             if (File.Exists(FilePath)) File.Replace(tmp, FilePath, null);
@@ -70,16 +70,16 @@ namespace AutoShortcut
         public static Config CreateDefault()
         {
             Config c = new Config();
-            c.AddKeys("Capturar una zona de la pantalla", "Win+Shift+S");
-            c.AddKeys("Historial del portapapeles", "Win+V");
-            c.AddKeys("Emojis y símbolos", "Win+.");
-            c.AddKeys("Explorador de archivos", "Win+E");
-            c.AddKeys("Mostrar el escritorio", "Win+D");
-            c.AddKeys("Configuración de Windows", "Win+I");
-            c.AddKeys("Administrador de tareas", "Ctrl+Shift+Escape");
-            c.AddRun("Bloc de notas", "notepad.exe");
-            c.AddRun("Calculadora", "calc.exe");
-            c.AddRun("Carpeta Descargas", "shell:Downloads");
+            c.AddKeys("Capture part of the screen", "Win+Shift+S");
+            c.AddKeys("Clipboard history", "Win+V");
+            c.AddKeys("Emoji and symbols", "Win+.");
+            c.AddKeys("File Explorer", "Win+E");
+            c.AddKeys("Show desktop", "Win+D");
+            c.AddKeys("Windows Settings", "Win+I");
+            c.AddKeys("Task Manager", "Ctrl+Shift+Escape");
+            c.AddRun("Notepad", "notepad.exe");
+            c.AddRun("Calculator", "calc.exe");
+            c.AddRun("Downloads folder", "shell:Downloads");
             c.AddRun("GitHub", "https://github.com");
             return c;
         }
@@ -100,7 +100,7 @@ namespace AutoShortcut
             Shortcuts.Add(s);
         }
 
-        // ---- Lectura ----
+        // ---- Reading ----
 
         public static Config Parse(string json)
         {
@@ -111,11 +111,11 @@ namespace AutoShortcut
             }
             catch (Exception ex)
             {
-                throw new FormatException("el JSON no es válido (" + ex.Message + ")");
+                throw new FormatException("invalid JSON (" + ex.Message + ")");
             }
 
             IDictionary<string, object> obj = root as IDictionary<string, object>;
-            if (obj == null) throw new FormatException("debe empezar por { y terminar por }");
+            if (obj == null) throw new FormatException("it must start with { and end with }");
 
             Config c = new Config();
             string hotkey = GetString(obj, "hotkey");
@@ -125,7 +125,7 @@ namespace AutoShortcut
             if (obj.TryGetValue("shortcuts", out list) && list != null)
             {
                 IList items = list as IList;
-                if (items == null) throw new FormatException("\"shortcuts\" debe ser una lista [ ... ]");
+                if (items == null) throw new FormatException("\"shortcuts\" must be a list [ ... ]");
                 foreach (object item in items)
                 {
                     IDictionary<string, object> entry = item as IDictionary<string, object>;
@@ -137,7 +137,7 @@ namespace AutoShortcut
                     s.Run = GetString(entry, "run");
                     s.Args = GetString(entry, "args");
                     if (string.IsNullOrEmpty(s.Name)) s.Name = s.IsLaunch ? s.Run : s.KeysText;
-                    if (string.IsNullOrEmpty(s.Name)) continue;   // entrada vacía
+                    if (string.IsNullOrEmpty(s.Name)) continue;   // empty entry
                     c.Shortcuts.Add(s);
                 }
             }
@@ -152,7 +152,7 @@ namespace AutoShortcut
             return s.Length == 0 ? null : s;
         }
 
-        // ---- Escritura ----
+        // ---- Writing ----
 
         public string ToJson()
         {

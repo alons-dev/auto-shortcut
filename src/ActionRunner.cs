@@ -6,7 +6,7 @@ using System.Threading;
 
 namespace AutoShortcut
 {
-    // Ejecuta un atajo. Devuelve null si ha ido bien o un mensaje de error para el usuario.
+    // Runs a shortcut. Returns null on success, or an error message for the user.
     internal static class ActionRunner
     {
         [DllImport("user32.dll")]
@@ -15,7 +15,7 @@ namespace AutoShortcut
         [DllImport("user32.dll")]
         private static extern bool IsWindow(IntPtr hWnd);
 
-        // previousWindow: la ventana que estaba delante antes de abrir el pop-up.
+        // previousWindow: the window that was in front before the pop-up opened.
         public static string Execute(Shortcut shortcut, IntPtr previousWindow)
         {
             return shortcut.IsLaunch ? Launch(shortcut) : PressKeys(shortcut, previousWindow);
@@ -25,24 +25,24 @@ namespace AutoShortcut
         {
             KeyCombo combo;
             if (!KeyCombo.TryParse(shortcut.KeysText, out combo))
-                return "No entiendo la combinación \"" + shortcut.KeysText + "\" de \"" + shortcut.Name + "\".";
+                return "Can't understand the key combination \"" + shortcut.KeysText + "\" in \"" + shortcut.Name + "\".";
 
-            // Las teclas van a la ventana que tiene el foco. Al hacer clic el foco es
-            // nuestro, así que se lo devolvemos a la ventana de antes y le damos un
-            // instante para activarse antes de pulsar.
+            // Keys go to the window that has focus. When you click, the focus is ours,
+            // so we hand it back to the previous window and give it a moment to
+            // activate before pressing the keys.
             if (previousWindow != IntPtr.Zero && IsWindow(previousWindow))
                 SetForegroundWindow(previousWindow);
             Thread.Sleep(80);
 
             if (!KeySender.Send(combo))
-                return "Windows no ha dejado enviar " + combo + " (pasa con ventanas abiertas como administrador).";
+                return "Windows blocked sending " + combo + " (this happens with windows running as administrator).";
             return null;
         }
 
         private static string Launch(Shortcut shortcut)
         {
-            // UseShellExecute = como hacer doble clic: vale para programas, archivos,
-            // carpetas, URLs (navegador por defecto) y rutas tipo "shell:Downloads".
+            // UseShellExecute = like double-clicking: works for programs, files,
+            // folders, URLs (default browser) and paths like "shell:Downloads".
             ProcessStartInfo psi = new ProcessStartInfo(Environment.ExpandEnvironmentVariables(shortcut.Run));
             psi.UseShellExecute = true;
             if (!string.IsNullOrEmpty(shortcut.Args))
@@ -55,11 +55,11 @@ namespace AutoShortcut
             }
             catch (Win32Exception ex)
             {
-                return "No se pudo abrir \"" + shortcut.Run + "\": " + ex.Message;
+                return "Couldn't open \"" + shortcut.Run + "\": " + ex.Message;
             }
             catch (InvalidOperationException ex)
             {
-                return "No se pudo abrir \"" + shortcut.Run + "\": " + ex.Message;
+                return "Couldn't open \"" + shortcut.Run + "\": " + ex.Message;
             }
         }
     }

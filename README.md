@@ -1,152 +1,152 @@
 # AutoShortcut
 
-Un panel de atajos de teclado para Windows. Pulsa **Win + Shift + A** y aparece un pop-up minimalista en la esquina inferior derecha, con bordes redondeados al estilo Windows 11. Haz clic en un atajo y se ejecuta.
+A keyboard shortcuts panel for Windows. Press **Win + Shift + A** and a minimalist pop-up appears in the bottom-right corner, with Windows 11-style rounded corners. Click a shortcut and it runs.
 
-- **Sin dependencias**: solo usa lo que ya trae Windows 10 y 11 (Windows PowerShell y .NET Framework). Nada de AutoHotkey, NuGet ni instaladores de terceros.
-- **Tu lista**: añade, edita o quita atajos desde el propio pop-up.
-- **Clic = acción**: un atajo puede pulsar una combinación de teclas, abrir un programa, una carpeta o una web.
-- **Tecla configurable**: Win + Shift + A por defecto, cámbiala por la que quieras.
+- **No dependencies**: it only uses what already ships with Windows 10 and 11 (Windows PowerShell and .NET Framework). No AutoHotkey, NuGet or third-party installers.
+- **Your list**: add, edit or remove shortcuts from the pop-up itself.
+- **Click = action**: a shortcut can press a key combination, or open a program, a folder or a website.
+- **Configurable hotkey**: Win + Shift + A by default, change it to whatever you like.
 
-## Instalar
+## Install
 
-Abre PowerShell (no hace falta ser administrador) y ejecuta:
+Open PowerShell (no administrator rights needed) and run:
 
 ```powershell
 irm https://raw.githubusercontent.com/alons-dev/auto-shortcut/main/install.ps1 | iex
 ```
 
-El instalador:
+The installer:
 
-1. Descarga el código de este repositorio (zip de GitHub).
-2. Lo copia a `%LOCALAPPDATA%\Programs\AutoShortcut` y comprueba que compila.
-3. Crea un acceso directo en el menú Inicio y otro en Inicio de Windows, para que arranque con el PC.
-4. Lo registra en **Configuración › Aplicaciones**, desde donde se puede desinstalar.
-5. Lo arranca: aparece su icono en la bandeja, junto al reloj.
+1. Downloads the code from this repository (GitHub zip).
+2. Copies it to `%LOCALAPPDATA%\Programs\AutoShortcut` and checks that it compiles.
+3. Creates a shortcut in the Start menu and another in Windows Startup, so it runs when you sign in.
+4. Registers it in **Settings › Apps**, where you can uninstall it.
+5. Starts it: its icon shows up in the system tray, next to the clock.
 
-Para actualizar, vuelve a ejecutar el mismo comando. Tu lista de atajos no se toca.
+To update, run the same command again. Your shortcut list is left untouched.
 
-### Por qué no hay un `.exe`
+### Why there's no `.exe`
 
-Windows 11 trae **Smart App Control**, que bloquea los `.exe` sin firma digital que no conoce, y un `.exe` compilado en tu equipo siempre es "desconocido". Por eso AutoShortcut no se compila a `.exe`: lo arranca **Windows PowerShell** (firmado por Microsoft), que compila el código C# en memoria con `Add-Type` (ver [`run.ps1`](run.ps1)). Es la misma idea que AutoHotkey: un programa firmado que ejecuta tu código.
+Windows 11 ships with **Smart App Control**, which blocks unsigned `.exe` files it doesn't recognize, and an `.exe` compiled on your own machine is always "unknown". That's why AutoShortcut isn't compiled to an `.exe`: it's started by **Windows PowerShell** (signed by Microsoft), which compiles the C# code in memory with `Add-Type` (see [`run.ps1`](run.ps1)). It's the same idea as AutoHotkey: a signed program that runs your code.
 
-El acceso directo lo lanza con `conhost.exe --headless`, la consola de Windows en modo sin ventana, para que no se vea ninguna consola (tampoco si Windows Terminal es tu terminal predeterminada). Al arrancar tarda uno o dos segundos, porque compila el código.
+The shortcut launches it with `conhost.exe --headless`, the Windows console in windowless mode, so no console shows up (not even when Windows Terminal is your default terminal). Startup takes a second or two, because it compiles the code.
 
-## Usar
+## Use
 
-| Acción | Cómo |
+| Action | How |
 |---|---|
-| Abrir / cerrar el pop-up | `Win + Shift + A`, o clic en el icono de la bandeja |
-| Ejecutar un atajo | Clic sobre él |
-| Añadir un atajo | Botón **+** del pop-up |
-| Editar, mover o borrar un atajo | Clic derecho sobre él |
-| Cambiar la tecla que abre el pop-up | Botón de la rueda (⚙) del pop-up |
-| Cerrar | `Esc` o clic fuera del pop-up |
+| Open / close the pop-up | `Win + Shift + A`, or click the tray icon |
+| Run a shortcut | Click it |
+| Add a shortcut | The pop-up's **+** button |
+| Edit, move or delete a shortcut | Right-click it |
+| Change the key that opens the pop-up | The pop-up's gear button (⚙) |
+| Close | `Esc` or click outside the pop-up |
 
-Al crear o editar un atajo de teclas, o al cambiar la tecla del pop-up, puedes escribir la combinación (`Ctrl+Alt+T`) o pulsar **Grabar** y hacerla con el teclado. Grabar funciona incluso con las que Windows se reserva, como `Win+Shift+S`.
+When you create or edit a key shortcut, or change the pop-up's hotkey, you can type the combination (`Ctrl+Alt+T`) or press **Record** and do it on the keyboard. Recording works even with combinations Windows reserves for itself, like `Win+Shift+S`.
 
-## Tu lista de atajos
+## Your shortcut list
 
-Se guarda en `%APPDATA%\AutoShortcut\shortcuts.json` y se crea la primera vez con unos atajos de ejemplo. Lo normal es editarla desde el pop-up, pero también puedes hacerlo a mano (clic derecho en el icono de la bandeja › **Editar shortcuts.json**). Los cambios hechos a mano se aplican la próxima vez que abras el pop-up.
+It's saved in `%APPDATA%\AutoShortcut\shortcuts.json` and created the first time with a few sample shortcuts. Normally you edit it from the pop-up, but you can also do it by hand (right-click the tray icon › **Edit shortcuts.json**). Changes made by hand apply the next time you open the pop-up.
 
 ```json
 {
   "hotkey": "Win+Shift+A",
   "shortcuts": [
-    { "name": "Capturar una zona", "keys": "Win+Shift+S" },
-    { "name": "Bloc de notas", "run": "notepad.exe" },
-    { "name": "Mis documentos", "run": "%USERPROFILE%\\Documents" },
+    { "name": "Capture part of the screen", "keys": "Win+Shift+S" },
+    { "name": "Notepad", "run": "notepad.exe" },
+    { "name": "My documents", "run": "%USERPROFILE%\\Documents" },
     { "name": "GitHub", "run": "https://github.com" },
-    { "name": "Ping a Google", "run": "cmd.exe", "args": "/k ping google.com" }
+    { "name": "Ping Google", "run": "cmd.exe", "args": "/k ping google.com" }
   ]
 }
 ```
 
-- `hotkey`: la combinación que abre el pop-up. Debe llevar `Win`, `Ctrl` o `Alt`. Si otra app ya la usa, el pop-up lo indica en su cabecera y puedes abrirlo con clic en el icono de la bandeja mientras eliges otra.
-- `keys`: al hacer clic se pulsa esa combinación en la ventana que tenías delante (útil para recordar atajos de Windows o de tus apps).
-- `run`: al hacer clic se abre ese programa, archivo, carpeta o URL, como si le hicieras doble clic. Admite variables como `%USERPROFILE%`.
-- `args` (opcional, con `run`): argumentos para el programa.
+- `hotkey`: the combination that opens the pop-up. It must include `Win`, `Ctrl` or `Alt`. If another app already uses it, the pop-up says so in its header, and you can open it by clicking the tray icon while you pick another one.
+- `keys`: on click, that combination is pressed in the window you had in front (handy for remembering shortcuts of Windows or your apps).
+- `run`: on click, that program, file, folder or URL opens, as if you double-clicked it. Supports variables like `%USERPROFILE%`.
+- `args` (optional, with `run`): arguments for the program.
 
-En `\` dentro del JSON se escribe doble (`\\`). Si el archivo tiene un error, la app avisa y sigue con la última lista buena; no lo sobrescribe.
+Inside JSON, `\` is written twice (`\\`). If the file has an error, the app warns you and keeps using the last good list; it doesn't overwrite the file.
 
-**Teclas que entiende:** `Win`, `Ctrl`, `Alt`, `Shift`, letras, números, `F1`–`F24`, `Up` `Down` `Left` `Right` (o `↑ ↓ ← →`), `Enter`, `Esc`, `Tab`, `Space`, `Home`, `End`, `PageUp`, `PageDown`, `Delete`, `Backspace`, `PrintScreen`, `.` `,` `-`. También en español: `Supr`, `Inicio`, `Fin`, `RePág`, `AvPág`, `Espacio`, `Retroceso`, `ImprPant`.
+**Keys it understands:** `Win`, `Ctrl`, `Alt`, `Shift`, letters, numbers, `F1`–`F24`, `Up` `Down` `Left` `Right` (or `↑ ↓ ← →`), `Enter`, `Esc`, `Tab`, `Space`, `Home`, `End`, `PageUp` / `PgUp`, `PageDown` / `PgDn`, `Insert` / `Ins`, `Delete` / `Del`, `Backspace`, `PrintScreen` / `PrtSc`, `CapsLock`, `.` `,` `-`.
 
-## Cómo está construido
+## How it's built
 
 ```
 auto-shortcut/
-├── src/             Código C# (WinForms) de la aplicación
-├── run.ps1          Arranca la app compilando src/ en memoria (lo que usa la instalación)
-├── install.ps1      Descarga, comprueba e instala (el comando de arriba)
-├── uninstall.ps1    Quita la app, sus accesos directos y su registro
-├── build.ps1        Compila src/ → bin/AutoShortcut.exe (solo para desarrollo)
+├── src/             The app's C# (WinForms) code
+├── run.ps1          Starts the app by compiling src/ in memory (what the installation uses)
+├── install.ps1      Downloads, checks and installs (the command above)
+├── uninstall.ps1    Removes the app, its shortcuts and its registry entry
+├── build.ps1        Compiles src/ → bin/AutoShortcut.exe (development only)
 ├── README.md
 └── LICENSE
 ```
 
-Los `.ps1` están escritos solo en ASCII (sin tildes) a propósito: Windows PowerShell 5.1 lee los scripts sin BOM como ANSI y las tildes saldrían rotas.
+The `.ps1` files are ASCII-only on purpose: Windows PowerShell 5.1 reads scripts without a BOM as ANSI, so non-ASCII characters would come out garbled.
 
-Las piezas principales:
+The main pieces:
 
-- **Hotkey global** — `RegisterHotKey` de la API Win32 (`user32.dll`). Windows avisa a la app con un mensaje `WM_HOTKEY` aunque esté en segundo plano.
-- **Pop-up** — un formulario WinForms sin bordes, colocado sobre la barra de tareas a la derecha. Las esquinas redondeadas se las pide a Windows 11 con `DwmSetWindowAttribute` (la misma API que usan las ventanas del sistema).
-- **Lista de atajos** — JSON leído con `JavaScriptSerializer` (incluido en .NET Framework) y escrito a mano para que quede legible. Sin librerías externas.
-- **Ejecutar** — al abrir el pop-up se recuerda qué ventana estaba delante. Al hacer clic se le devuelve el foco y se "pulsa" la combinación con `SendInput`; programas, carpetas y URLs se abren con `Process.Start`.
-- **Filas** — un control propio dibujado con GDI+: nombre a la izquierda y las teclas como "keycaps" a la derecha.
-- **Grabar combinaciones** — un hook de teclado de bajo nivel (`SetWindowsHookEx` con `WH_KEYBOARD_LL`) recibe las teclas antes que los atajos de Windows. Solo está activo mientras grabas: se suelta con la primera combinación, con `Esc`, a los 10 segundos o si la ventana pierde el foco.
-- **Estilo Windows 11** — iconos de la fuente *Segoe Fluent Icons*, menús y cuadros de texto dibujados con los colores del tema, y barra de título oscura pedida a DWM.
+- **Global hotkey** — `RegisterHotKey` from the Win32 API (`user32.dll`). Windows notifies the app with a `WM_HOTKEY` message even while it's in the background.
+- **Pop-up** — a borderless WinForms form, placed above the taskbar on the right. It asks Windows 11 for rounded corners with `DwmSetWindowAttribute` (the same API system windows use).
+- **Shortcut list** — JSON read with `JavaScriptSerializer` (included in .NET Framework) and written by hand so it stays readable. No external libraries.
+- **Running** — when the pop-up opens it remembers which window was in front. On click, focus goes back to it and the combination is "pressed" with `SendInput`; programs, folders and URLs open with `Process.Start`.
+- **Rows** — a custom control drawn with GDI+: the name on the left and the keys as "keycaps" on the right.
+- **Recording combinations** — a low-level keyboard hook (`SetWindowsHookEx` with `WH_KEYBOARD_LL`) gets the keys before Windows shortcuts do. It's only active while you record: it's released with the first combination, with `Esc`, after 10 seconds or if the window loses focus.
+- **Windows 11 style** — icons from the *Segoe Fluent Icons* font, menus and text boxes drawn with the theme colors, and a dark title bar requested from DWM.
 
-| Archivo | Qué hace |
+| File | What it does |
 |---|---|
-| `Program.cs` | Punto de entrada: una sola instancia, nitidez en pantallas con zoom, registro de errores |
-| `TrayApp.cs` | Icono de la bandeja; une configuración, hotkey, pop-up, acciones y editor |
-| `HotkeyWindow.cs` | Hotkey global con `RegisterHotKey` |
-| `PopupForm.cs` | El pop-up: posición, esquinas redondeadas, lista, botones y menú |
-| `ShortcutRow.cs` / `IconButton.cs` | Una fila clicable / un botón de icono |
-| `EditorForm.cs` / `SettingsForm.cs` | Ventanas para editar un atajo y cambiar la tecla |
-| `ThemedDialog.cs` / `InputBox.cs` / `MenuRenderer.cs` | Ventanas, cuadros de texto y menús con el tema |
-| `KeyField.cs` / `KeyRecorder.cs` | Campo de combinación con el botón Grabar |
-| `Config.cs` / `Shortcut.cs` | Leer y guardar `shortcuts.json` |
-| `KeyCombo.cs` | Texto `"Win+Shift+A"` ⇄ teclas |
-| `KeySender.cs` / `ActionRunner.cs` | Ejecutar un atajo |
-| `Theme.cs` / `Ui.cs` | Colores claro/oscuro, escala y dibujo |
+| `Program.cs` | Entry point: single instance, sharp rendering on scaled displays, error logging |
+| `TrayApp.cs` | Tray icon; ties together settings, hotkey, pop-up, actions and editor |
+| `HotkeyWindow.cs` | Global hotkey with `RegisterHotKey` |
+| `PopupForm.cs` | The pop-up: position, rounded corners, list, buttons and menu |
+| `ShortcutRow.cs` / `IconButton.cs` | A clickable row / an icon button |
+| `EditorForm.cs` / `SettingsForm.cs` | Windows to edit a shortcut and change the hotkey |
+| `ThemedDialog.cs` / `InputBox.cs` / `MenuRenderer.cs` | Themed windows, text boxes and menus |
+| `KeyField.cs` / `KeyRecorder.cs` | Combination field with the Record button |
+| `Config.cs` / `Shortcut.cs` | Read and save `shortcuts.json` |
+| `KeyCombo.cs` | Text `"Win+Shift+A"` ⇄ keys |
+| `KeySender.cs` / `ActionRunner.cs` | Run a shortcut |
+| `Theme.cs` / `Ui.cs` | Light/dark colors, scaling and drawing |
 
-Si algo falla dentro de la app, se apunta en `%APPDATA%\AutoShortcut\error.log`.
+If something goes wrong inside the app, it's logged in `%APPDATA%\AutoShortcut\error.log`.
 
-### Desarrollar
+### Develop
 
 ```powershell
 git clone https://github.com/alons-dev/auto-shortcut.git
 cd auto-shortcut
-powershell -ExecutionPolicy Bypass -File .\run.ps1      # arranca la app desde el código
-powershell -ExecutionPolicy Bypass -File .\install.ps1  # instala tu copia local
-.\build.ps1                                             # compila con csc.exe → bin\AutoShortcut.exe
+powershell -ExecutionPolicy Bypass -File .\run.ps1      # start the app from the code
+powershell -ExecutionPolicy Bypass -File .\install.ps1  # install your local copy
+.\build.ps1                                             # compile with csc.exe → bin\AutoShortcut.exe
 ```
 
-`run.ps1` necesita **Windows PowerShell** (`powershell`), no PowerShell 7 (`pwsh`), porque usa .NET Framework. Si ya tienes AutoShortcut instalado y en marcha, ciérralo antes (menú del icono › Salir): solo puede haber una copia abierta.
+`run.ps1` needs **Windows PowerShell** (`powershell`), not PowerShell 7 (`pwsh`), because it uses .NET Framework. If AutoShortcut is already installed and running, close it first (tray icon menu › Exit): only one copy can be open.
 
-`bin\AutoShortcut.exe` funciona si Smart App Control está desactivado; si está activado, Windows puede bloquearlo.
+`bin\AutoShortcut.exe` works if Smart App Control is off; if it's on, Windows may block it.
 
-## Desinstalar
+## Uninstall
 
-Desde **Configuración › Aplicaciones › AutoShortcut › Desinstalar**, o con:
+From **Settings › Apps › AutoShortcut › Uninstall**, or with:
 
 ```powershell
 & "$env:LOCALAPPDATA\Programs\AutoShortcut\uninstall.ps1"
 ```
 
-Tu lista se queda en `%APPDATA%\AutoShortcut` por si vuelves. Para borrarla también, añade `-RemoveSettings` al comando de arriba. Si ya desinstalaste sin esa opción (el desinstalador se borra a sí mismo), borra la carpeta directamente:
+Your list stays in `%APPDATA%\AutoShortcut` in case you come back. To delete it too, add `-RemoveSettings` to the command above. If you already uninstalled without that option (the uninstaller deletes itself), delete the folder directly:
 
 ```powershell
 Remove-Item "$env:APPDATA\AutoShortcut" -Recurse -Force
 ```
 
-## Limitaciones
+## Limitations
 
-- Windows no deja que una app normal envíe teclas a ventanas abiertas como administrador.
-- Si otra app ya usa la combinación elegida, Windows no deja registrarla: el pop-up te avisará para que elijas otra.
-- `Ctrl+Alt+Supr` y `Win+L` las gestiona Windows en un nivel protegido y no se pueden simular.
-- Las teclas `Fn` del portátil (brillo, volumen del fabricante…) no son teclas de Windows y no se pueden enviar.
+- Windows doesn't let a regular app send keys to windows running as administrator.
+- If another app already uses the chosen combination, Windows won't register it: the pop-up will warn you so you can pick another one.
+- `Ctrl+Alt+Del` and `Win+L` are handled by Windows at a protected level and can't be simulated.
+- Laptop `Fn` keys (brightness, vendor volume…) aren't Windows keys and can't be sent.
 
-## Licencia
+## License
 
 [MIT](LICENSE)

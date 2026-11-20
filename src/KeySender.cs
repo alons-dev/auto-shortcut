@@ -5,8 +5,8 @@ using System.Windows.Forms;
 
 namespace AutoShortcut
 {
-    // Pulsa una combinación de teclas como si lo hiciera el usuario, con SendInput (user32.dll):
-    // baja los modificadores, pulsa y suelta la tecla, y suelta los modificadores en orden inverso.
+    // Presses a key combination as if the user did it, using SendInput (user32.dll):
+    // modifiers down, key down and up, then modifiers up in reverse order.
     internal static class KeySender
     {
         [StructLayout(LayoutKind.Sequential)]
@@ -19,8 +19,8 @@ namespace AutoShortcut
             public IntPtr dwExtraInfo;
         }
 
-        // INPUT es una unión de ratón/teclado/hardware: hay que reservar el tamaño
-        // de la más grande (MOUSEINPUT) o SendInput rechaza la llamada en 64 bits.
+        // INPUT is a union of mouse/keyboard/hardware input: it must be as large as
+        // the biggest member (MOUSEINPUT) or SendInput rejects the call on 64-bit.
         [StructLayout(LayoutKind.Sequential)]
         private struct MOUSEINPUT
         {
@@ -80,12 +80,12 @@ namespace AutoShortcut
             INPUT input = new INPUT();
             input.type = INPUT_KEYBOARD;
             input.u.ki.wVk = (ushort)key;
-            input.u.ki.wScan = (ushort)MapVirtualKey((uint)key, 0);   // algunas apps (juegos) leen el scan code
+            input.u.ki.wScan = (ushort)MapVirtualKey((uint)key, 0);   // some apps (games) read the scan code
             input.u.ki.dwFlags = (up ? KEYEVENTF_KEYUP : 0) | (IsExtended(key) ? KEYEVENTF_EXTENDEDKEY : 0);
             return input;
         }
 
-        // Teclas "extendidas": sin esta marca, p. ej. la flecha → llega como el 6 del teclado numérico.
+        // "Extended" keys: without this flag, e.g. the Right arrow arrives as numpad 6.
         private static bool IsExtended(Keys key)
         {
             switch (key)

@@ -3,8 +3,8 @@ using System.Windows.Forms;
 
 namespace AutoShortcut
 {
-    // Los menús de WinForms se dibujan siempre en claro. Este "renderer" cambia su
-    // paleta por la del tema (claro u oscuro) y Ui.ApplyFrame les redondea las esquinas.
+    // WinForms menus are always drawn light. This renderer swaps their palette for
+    // the theme's (light or dark) and Ui.ApplyFrame rounds their corners.
     internal sealed class MenuRenderer : ToolStripProfessionalRenderer
     {
         private readonly Theme _theme;
@@ -23,7 +23,7 @@ namespace AutoShortcut
             menu.Font = new Font("Segoe UI", 9.75F);
             menu.ShowImageMargin = false;
             menu.Padding = new Padding(Ui.S(4));
-            // Más aire alrededor de cada opción, como los menús de Windows 11.
+            // More room around each item, like Windows 11 menus.
             menu.ItemAdded += delegate(object sender, ToolStripItemEventArgs e)
             {
                 if (!(e.Item is ToolStripSeparator)) e.Item.Padding = new Padding(Ui.S(10), Ui.S(4), Ui.S(10), Ui.S(4));
@@ -31,7 +31,7 @@ namespace AutoShortcut
             menu.HandleCreated += delegate { Ui.ApplyFrame(menu.Handle, theme.Dark, Ui.CornerRoundSmall); };
         }
 
-        // Fondo de la opción seleccionada redondeado, en vez del rectángulo con borde clásico.
+        // Rounded background for the selected item, instead of the classic bordered rectangle.
         protected override void OnRenderMenuItemBackground(ToolStripItemRenderEventArgs e)
         {
             if (!e.Item.Selected || !e.Item.Enabled) return;

@@ -3,24 +3,24 @@ using Microsoft.Win32;
 
 namespace AutoShortcut
 {
-    // Colores al estilo Windows 11, en claro u oscuro según la configuración del usuario
-    // (Configuración > Personalización > Colores > "Elige el modo de aplicación").
+    // Windows 11-style colors, light or dark following the user's setting
+    // (Settings > Personalization > Colors > "Choose your app mode").
     internal sealed class Theme
     {
         public bool Dark;
         public Color Background;
         public Color Foreground;
-        public Color Subtle;       // texto secundario
-        public Color Hover;        // fondo de una fila o botón bajo el ratón
-        public Color Pressed;      // fondo al hacer clic
-        public Color KeyFill;      // fondo de las "teclas"
-        public Color KeyBorder;    // borde de las "teclas"
-        public Color InputBack;    // cajas de texto y botones normales
-        public Color Border;       // bordes de cajas y botones
-        public Color Accent;       // botón principal (Guardar)
+        public Color Subtle;       // secondary text
+        public Color Hover;        // background of a row or button under the mouse
+        public Color Pressed;      // background while clicking
+        public Color KeyFill;      // keycap background
+        public Color KeyBorder;    // keycap border
+        public Color InputBack;    // text boxes and regular buttons
+        public Color Border;       // text box and button borders
+        public Color Accent;       // primary button (Save)
         public Color AccentText;
         public Color Error;
-        public Color MenuBack;     // menús contextuales
+        public Color MenuBack;     // context menus
 
         public static Theme Current()
         {
@@ -66,8 +66,8 @@ namespace AutoShortcut
             return ReadPersonalize("AppsUseLightTheme") == 0;
         }
 
-        // La barra de tareas tiene su propio modo ("Elige el modo de Windows"):
-        // el icono de la bandeja debe contrastar con ella, no con las apps.
+        // The taskbar has its own mode ("Choose your default Windows mode"):
+        // the tray icon must contrast with it, not with apps.
         public static bool TaskbarIsDark()
         {
             return ReadPersonalize("SystemUsesLightTheme") != 1;

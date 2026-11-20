@@ -4,9 +4,9 @@ using System.Windows.Forms;
 
 namespace AutoShortcut
 {
-    // Base de las ventanas de diálogo (editor y configuración): marco de Windows 11
-    // con barra de título clara u oscura, colores del tema y botones Guardar/Cancelar.
-    // Las medidas se escriben a 100 % y se escalan con Ui.S.
+    // Base for the dialog windows (editor and settings): Windows 11 frame with a light
+    // or dark title bar, theme colors and Save/Cancel buttons.
+    // Sizes are written at 100 % and scaled with Ui.S.
     internal class ThemedDialog : Form
     {
         protected readonly Theme T;
@@ -22,7 +22,7 @@ namespace AutoShortcut
             FormBorderStyle = FormBorderStyle.FixedDialog;
             MaximizeBox = false;
             MinimizeBox = false;
-            ShowInTaskbar = true;   // la app no tiene ventana principal: que se pueda encontrar
+            ShowInTaskbar = true;   // the app has no main window: make it easy to find
             StartPosition = FormStartPosition.CenterScreen;
             TopMost = true;
             Font = new Font("Segoe UI", 9.75F);
@@ -37,9 +37,9 @@ namespace AutoShortcut
             ErrorLabel.Bounds = new Rectangle(Ui.S(16), Ui.S(buttonsY - 2), Ui.S(width - 16 - 220), Ui.S(36));
             Controls.Add(ErrorLabel);
 
-            CancelBtn = AddButton("Cancelar", width - 16 - 96 - 8 - 96, buttonsY, 96, false);
+            CancelBtn = AddButton("Cancel", width - 16 - 96 - 8 - 96, buttonsY, 96, false);
             CancelBtn.DialogResult = DialogResult.Cancel;
-            SaveButton = AddButton("Guardar", width - 16 - 96, buttonsY, 96, true);
+            SaveButton = AddButton("Save", width - 16 - 96, buttonsY, 96, true);
             SaveButton.Click += delegate
             {
                 string error = TrySave();
@@ -50,7 +50,7 @@ namespace AutoShortcut
             CancelButton = CancelBtn;
         }
 
-        // Valida y guarda. Devuelve null si todo bien o el error a mostrar.
+        // Validates and saves. Returns null on success, or the error to show.
         protected virtual string TrySave()
         {
             return null;
@@ -68,14 +68,14 @@ namespace AutoShortcut
             Activate();
         }
 
-        // ---- Ayudas para colocar controles (coordenadas a 100 %) ----
+        // ---- Helpers to place controls (coordinates at 100 %) ----
 
         protected Label AddLabel(string text, int x, int y)
         {
             Label l = new Label();
             l.Text = text;
             l.AutoSize = true;
-            l.Location = new Point(Ui.S(x), Ui.S(y) + Ui.S(6));   // centrada con un cuadro de 32 px
+            l.Location = new Point(Ui.S(x), Ui.S(y) + Ui.S(6));   // centered with a 32 px box
             Controls.Add(l);
             return l;
         }

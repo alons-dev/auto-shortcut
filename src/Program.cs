@@ -8,14 +8,14 @@ namespace AutoShortcut
 {
     internal static class Program
     {
-        // Sin esto Windows dibuja la app borrosa en pantallas con zoom (125 %, 150 %...).
+        // Without this, Windows renders the app blurry on scaled displays (125 %, 150 %...).
         [DllImport("user32.dll")]
         private static extern bool SetProcessDPIAware();
 
         [STAThread]
         private static void Main()
         {
-            // Una sola instancia: si ya hay una abierta, esta se cierra sin hacer nada.
+            // Single instance: if one is already running, this one exits silently.
             bool isFirst;
             using (Mutex mutex = new Mutex(true, @"Local\AutoShortcut", out isFirst))
             {
@@ -25,14 +25,14 @@ namespace AutoShortcut
                 Application.EnableVisualStyles();
                 Application.SetCompatibleTextRenderingDefault(false);
 
-                // Si algo falla dentro de la app, no cerrarla ni quedarse callada:
-                // se apunta en error.log y se avisa.
+                // If something fails inside the app, don't crash or fail silently:
+                // write it to error.log and tell the user.
                 Application.SetUnhandledExceptionMode(UnhandledExceptionMode.CatchException);
                 Application.ThreadException += delegate(object sender, ThreadExceptionEventArgs e)
                 {
                     string log = LogError(e.Exception);
-                    MessageBox.Show("Algo ha fallado: " + e.Exception.Message +
-                        (log != null ? "\n\nDetalles en " + log : ""),
+                    MessageBox.Show("Something went wrong: " + e.Exception.Message +
+                        (log != null ? "\n\nDetails in " + log : ""),
                         "AutoShortcut", MessageBoxButtons.OK, MessageBoxIcon.Error);
                 };
 
