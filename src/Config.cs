@@ -10,22 +10,92 @@ namespace AutoShortcut
     // The configuration lives in %APPDATA%\AutoShortcut\shortcuts.json:
     //
     //   {
-    //     "hotkey": "Win+Shift+A",
+    //     "hotkey": "Win+Shift+Z",
     //     "shortcuts": [
-    //       { "name": "Capture part of the screen", "keys": "Win+Shift+S" },
-    //       { "name": "Notepad", "run": "notepad.exe" }
-    //     ]
+    //       { "name": "Notepad", "run": "notepad.exe" },
+    //       { "name": "Lock screen", "keys": "Win+L" }
+    //     ],
+    //     "favorites": ["win:winkey.clipboard-history", "custom:Notepad"],
+    //     "recent": ["win:text.copy"]
     //   }
+    //
+    // Favorites and recents are "refs": "win:<id>" for a built-in Windows shortcut
+    // (see WindowsShortcuts.cs) and "custom:<name>" for one of the user's shortcuts.
     //
     // Reading uses JavaScriptSerializer, which ships with .NET Framework
     // (System.Web.Extensions.dll). Writing builds the text by hand so the file
     // is indented with one shortcut per line, easy to edit.
     internal sealed class Config
     {
-        public const string DefaultHotkey = "Win+Shift+A";
+        public const string DefaultHotkey = "Win+Shift+Z";
+        // The default up to 0.1. Windows 11 itself uses it ("focus a Windows tip"),
+        // so a saved Win+Shift+A is moved to the new default.
+        public const string OldDefaultHotkey = "Win+Shift+A";
+        public const int MaxRecent = 10;
 
         public string Hotkey = DefaultHotkey;
         public List<Shortcut> Shortcuts = new List<Shortcut>();
+        public List<string> Favorites = new List<string>();
+        public List<string> Recent = new List<string>();
+
+        // Set by Parse when the hotkey was moved off the old default: Load saves it.
+        public bool Migrated;
+
+        public static string CustomRef(string name) { return "custom:" + name; }
+        public static string WinRef(string id) { return "win:" + id; }
+
+        public bool IsFavorite(string reference)
+        {
+            return Favorites.Contains(reference);
+        }
+
+        public void ToggleFavorite(string reference)
+        {
+            if (!Favorites.Remove(reference)) Favorites.Add(reference);
+        }
+
+        // Newest first, no duplicates, at most MaxRecent.
+        public void AddRecent(string reference)
+        {
+            Recent.Remove(reference);
+            Recent.Insert(0, reference);
+            if (Recent.Count > MaxRecent) Recent.RemoveRange(MaxRecent, Recent.Count - MaxRecent);
+        }
+
+        // Call after renaming a custom shortcut: its refs follow the new name.
+        public void RenameCustom(string oldName, string newName)
+        {
+            if (oldName == newName) return;
+            string from = CustomRef(oldName), to = CustomRef(newName);
+            RenameIn(Favorites, from, to);
+            RenameIn(Recent, from, to);
+        }
+
+        private static void RenameIn(List<string> refs, string from, string to)
+        {
+            int i = refs.IndexOf(from);
+            if (i < 0) return;
+            if (refs.Contains(to)) refs.RemoveAt(i);   // already there: don't duplicate
+            else refs[i] = to;
+        }
+
+        // Call after deleting a custom shortcut: drops its refs unless another
+        // custom shortcut still has that name.
+        public void RemoveCustom(string name)
+        {
+            foreach (Shortcut s in Shortcuts)
+                if (s.Name == name) return;
+            string r = CustomRef(name);
+            Favorites.Remove(r);
+            Recent.Remove(r);
+        }
+
+        // Drops refs that no longer point to anything (e.g. edited by hand).
+        public void Prune(Predicate<string> exists)
+        {
+            Favorites.RemoveAll(r => !exists(r));
+            Recent.RemoveAll(r => !exists(r));
+        }
 
         public static string Folder
         {
@@ -53,7 +123,9 @@ namespace AutoShortcut
                 fresh.Save();
                 return fresh;
             }
-            return Parse(File.ReadAllText(FilePath, Encoding.UTF8));
+            Config c = Parse(File.ReadAllText(FilePath, Encoding.UTF8));
+            if (c.Migrated) c.Save();
+            return c;
         }
 
         public void Save()
@@ -69,27 +141,14 @@ namespace AutoShortcut
 
         public static Config CreateDefault()
         {
+            // The Windows shortcuts come built in (WindowsShortcuts.cs): the
+            // examples here are things only a custom shortcut can do.
             Config c = new Config();
-            c.AddKeys("Capture part of the screen", "Win+Shift+S");
-            c.AddKeys("Clipboard history", "Win+V");
-            c.AddKeys("Emoji and symbols", "Win+.");
-            c.AddKeys("File Explorer", "Win+E");
-            c.AddKeys("Show desktop", "Win+D");
-            c.AddKeys("Windows Settings", "Win+I");
-            c.AddKeys("Task Manager", "Ctrl+Shift+Escape");
             c.AddRun("Notepad", "notepad.exe");
             c.AddRun("Calculator", "calc.exe");
             c.AddRun("Downloads folder", "shell:Downloads");
             c.AddRun("GitHub", "https://github.com");
             return c;
-        }
-
-        private void AddKeys(string name, string keys)
-        {
-            Shortcut s = new Shortcut();
-            s.Name = name;
-            s.KeysText = keys;
-            Shortcuts.Add(s);
         }
 
         private void AddRun(string name, string run)
@@ -120,6 +179,14 @@ namespace AutoShortcut
             Config c = new Config();
             string hotkey = GetString(obj, "hotkey");
             if (!string.IsNullOrEmpty(hotkey)) c.Hotkey = hotkey;
+            KeyCombo saved;
+            if (KeyCombo.TryParse(c.Hotkey, out saved) && saved.ToString() == OldDefaultHotkey)
+            {
+                c.Hotkey = DefaultHotkey;
+                c.Migrated = true;
+            }
+            c.Favorites = GetStrings(obj, "favorites");
+            c.Recent = GetStrings(obj, "recent");
 
             object list;
             if (obj.TryGetValue("shortcuts", out list) && list != null)
@@ -152,6 +219,23 @@ namespace AutoShortcut
             return s.Length == 0 ? null : s;
         }
 
+        // A list of strings. Anything else (not a list, numbers, null) is ignored:
+        // these lists are only conveniences, never a reason to reject the file.
+        private static List<string> GetStrings(IDictionary<string, object> obj, string key)
+        {
+            List<string> result = new List<string>();
+            object value;
+            if (!obj.TryGetValue(key, out value)) return result;
+            IList items = value as IList;
+            if (items == null) return result;
+            foreach (object item in items)
+            {
+                string s = item as string;
+                if (!string.IsNullOrEmpty(s) && !result.Contains(s)) result.Add(s);
+            }
+            return result;
+        }
+
         // ---- Writing ----
 
         public string ToJson()
@@ -176,9 +260,18 @@ namespace AutoShortcut
                 }
                 sb.Append(" }");
             }
-            sb.Append(Shortcuts.Count == 0 ? "]\r\n" : "\r\n  ]\r\n");
+            sb.Append(Shortcuts.Count == 0 ? "],\r\n" : "\r\n  ],\r\n");
+            sb.Append("  \"favorites\": ").Append(QuoteList(Favorites)).Append(",\r\n");
+            sb.Append("  \"recent\": ").Append(QuoteList(Recent)).Append("\r\n");
             sb.Append("}\r\n");
             return sb.ToString();
+        }
+
+        private static string QuoteList(List<string> items)
+        {
+            List<string> quoted = new List<string>();
+            foreach (string s in items) quoted.Add(Quote(s));
+            return "[" + string.Join(", ", quoted) + "]";
         }
 
         private static string Quote(string s)
