@@ -1,0 +1,9 @@
+# Binarios compilados
+bin/
+*.exe
+*.pdb
+
+# Sistema / editor
+Thumbs.db
+.vs/
+.vscode/
