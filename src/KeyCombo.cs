@@ -24,6 +24,10 @@ namespace AutoShortcut
             { "↑", Keys.Up },              { "↓", Keys.Down },           { "←", Keys.Left },
             { "→", Keys.Right },
             { ",", Keys.Oemcomma },        { ".", Keys.OemPeriod },      { "-", Keys.OemMinus },
+            { "Comma", Keys.Oemcomma },    { "Period", Keys.OemPeriod }, { "Minus", Keys.OemMinus },
+            { "Plus", Keys.Oemplus },      { "NumPlus", Keys.Add },
+            { "Slash", Keys.OemQuestion }, { "/", Keys.OemQuestion },
+            { "Semicolon", Keys.OemSemicolon }, { ";", Keys.OemSemicolon },
         };
 
         // How each key is saved in the JSON (when the enum name isn't the best one).
@@ -32,6 +36,8 @@ namespace AutoShortcut
             { Keys.PageDown, "PageDown" }, { Keys.PageUp, "PageUp" },   { Keys.Enter, "Enter" },
             { Keys.CapsLock, "CapsLock" }, { Keys.PrintScreen, "PrintScreen" }, { Keys.Back, "Backspace" },
             { Keys.Oemcomma, "," },        { Keys.OemPeriod, "." },     { Keys.OemMinus, "-" },
+            { Keys.Oemplus, "Plus" },      { Keys.Add, "NumPlus" },
+            { Keys.OemQuestion, "Slash" }, { Keys.OemSemicolon, "Semicolon" },
         };
 
         // How each key is shown in the pop-up.
@@ -43,6 +49,8 @@ namespace AutoShortcut
             { Keys.Up, "↑" },              { Keys.Down, "↓" },          { Keys.Left, "←" },
             { Keys.Right, "→" },
             { Keys.Oemcomma, "," },        { Keys.OemPeriod, "." },     { Keys.OemMinus, "-" },
+            { Keys.Oemplus, "+" },         { Keys.Add, "Num +" },
+            { Keys.OemQuestion, "/" },     { Keys.OemSemicolon, ";" },
         };
 
         private readonly uint _modifiers;
