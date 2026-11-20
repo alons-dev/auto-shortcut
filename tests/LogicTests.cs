@@ -23,6 +23,7 @@ namespace AutoShortcut.Tests
             Test("RenameMovesRefs", RenameMovesRefs);
             Test("DeleteDropsRefs", DeleteDropsRefs);
             Test("BadRefListsIgnored", BadRefListsIgnored);
+            Test("CatalogShape", CatalogShape);
 
             Console.WriteLine(_passed + " passed, " + _failed + " failed");
             return _failed;
@@ -198,6 +199,61 @@ namespace AutoShortcut.Tests
             c.RemoveCustom("A");
             Equal("none left: favorite gone", "", Join(c.Favorites));
             Equal("none left: recent gone", "", Join(c.Recent));
+        }
+
+        // ---- Windows 11 catalog ----
+
+        private static readonly string[] SectionPrefixes =
+            { "text.", "general.", "winkey.", "cmd.", "dialog.", "explorer.", "desktops.", "taskbar.", "settings." };
+
+        private static CatalogItem Item(string id)
+        {
+            foreach (CatalogItem item in WindowsShortcuts.All)
+                if (item.Id == id) return item;
+            return null;
+        }
+
+        private static void CatalogShape()
+        {
+            Equal("sections", "Text editing,General,Windows key,Command Prompt,Dialog boxes,File Explorer,Desktops,Taskbar,Settings",
+                string.Join(",", WindowsShortcuts.Sections));
+            int count = WindowsShortcuts.All.Count;
+            Check("count", count >= 200 && count <= 240, "count " + count + " outside 200-240");
+
+            HashSet<string> ids = new HashSet<string>();
+            System.Text.RegularExpressions.Regex idPattern = new System.Text.RegularExpressions.Regex("^[a-z]+\\.[a-z0-9-]+$");
+            foreach (CatalogItem item in WindowsShortcuts.All)
+            {
+                string who = item.Id ?? "(null id)";
+                Check("unique " + who, ids.Add(who), "duplicate id");
+                Check("id pattern " + who, idPattern.IsMatch(who), "bad id");
+                int section = Array.IndexOf(WindowsShortcuts.Sections, item.Section);
+                Check("section " + who, section >= 0, "unknown section " + item.Section);
+                if (section >= 0) Check("prefix " + who, who.StartsWith(SectionPrefixes[section]), "id must start with " + SectionPrefixes[section]);
+                Check("name " + who, !string.IsNullOrEmpty(item.Name) && item.Name.Length <= 40, "name empty or > 40: " + item.Name);
+                if (item.Runnable)
+                {
+                    KeyCombo combo;
+                    Check("keys " + who, KeyCombo.TryParse(item.Keys, out combo), "keys don't parse: " + item.Keys);
+                }
+                else
+                {
+                    Check("display " + who, !string.IsNullOrEmpty(item.Display), "reference-only needs Display");
+                    Check("note " + who, item.Note != null && item.Note.StartsWith("Reference only: "), "reference-only needs a note");
+                }
+                string all = item.Name + " " + item.Keys + " " + item.Display + " " + item.Also + " " + item.Note;
+                Check("no Copilot " + who, all.IndexOf("Copilot", StringComparison.OrdinalIgnoreCase) < 0, "mentions Copilot");
+            }
+
+            CatalogItem clip = Item("winkey.clipboard-history");
+            Check("clipboard history exists", clip != null, "missing winkey.clipboard-history");
+            if (clip != null) Equal("clipboard keys", "Win+V", clip.Keys);
+            CatalogItem copy = Item("text.copy");
+            Check("copy exists", copy != null, "missing text.copy");
+            if (copy != null) Check("copy also", copy.Also != null && copy.Also.Contains("Ctrl+Insert"), "Also should list Ctrl+Insert");
+            CatalogItem tm = Item("general.task-manager");
+            Check("task manager exists", tm != null, "missing general.task-manager");
+            if (tm != null) Equal("task manager keys", "Ctrl+Shift+Escape", tm.Keys);
         }
 
         private static void BadRefListsIgnored()
