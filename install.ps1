@@ -25,7 +25,7 @@
 
     $Repo     = 'alons-dev/auto-shortcut'
     $Branch   = 'main'
-    $Version  = '0.2.0'
+    $Version  = '0.2.1'
     $AppDir   = Join-Path $env:LOCALAPPDATA 'Programs\AutoShortcut'
     $PsExe    = Join-Path $env:WINDIR 'System32\WindowsPowerShell\v1.0\powershell.exe'
     $Conhost  = Join-Path $env:WINDIR 'System32\conhost.exe'
