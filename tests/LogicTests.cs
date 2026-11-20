@@ -24,6 +24,12 @@ namespace AutoShortcut.Tests
             Test("DeleteDropsRefs", DeleteDropsRefs);
             Test("BadRefListsIgnored", BadRefListsIgnored);
             Test("CatalogShape", CatalogShape);
+            Test("ViewAllGrouping", ViewAllGrouping);
+            Test("ViewWindowsSection", ViewWindowsSection);
+            Test("ViewRecentAndFavorites", ViewRecentAndFavorites);
+            Test("SearchFinds", SearchFinds);
+            Test("OddQueries", OddQueries);
+            Test("PruneDropsUnknownRefs", PruneDropsUnknownRefs);
 
             Console.WriteLine(_passed + " passed, " + _failed + " failed");
             return _failed;
@@ -254,6 +260,119 @@ namespace AutoShortcut.Tests
             CatalogItem tm = Item("general.task-manager");
             Check("task manager exists", tm != null, "missing general.task-manager");
             if (tm != null) Equal("task manager keys", "Ctrl+Shift+Escape", tm.Keys);
+        }
+
+        // ---- Views and search ----
+
+        private static List<string> Headers(List<ListItem> items)
+        {
+            List<string> result = new List<string>();
+            foreach (ListItem item in items) if (item.Header != null) result.Add(item.Header);
+            return result;
+        }
+
+        private static List<string> Refs(List<ListItem> items)
+        {
+            List<string> result = new List<string>();
+            foreach (ListItem item in items) if (item.Entry != null) result.Add(item.Entry.Ref);
+            return result;
+        }
+
+        private static void ViewAllGrouping()
+        {
+            Config c = Config.CreateDefault();
+            List<ListItem> items = Library.View(c, ViewTab.All, null, null);
+            Equal("first header", "Custom", items[0].Header);
+            Equal("customs follow", "custom:Notepad,custom:Calculator,custom:Downloads folder,custom:GitHub",
+                Join(Refs(items).GetRange(0, 4)));
+            Equal("headers", "Custom," + string.Join(",", WindowsShortcuts.Sections), Join(Headers(items)));
+            Equal("entry count", 4 + WindowsShortcuts.All.Count, Refs(items).Count);
+
+            Config empty = new Config();
+            Equal("no Custom header without customs", WindowsShortcuts.Sections[0],
+                Library.View(empty, ViewTab.All, null, null)[0].Header);
+
+            Entry notepad = items[1].Entry;
+            Check("custom index", notepad.CustomIndex == 0 && notepad.IsCustom, "Notepad should be custom #0");
+            Equal("custom section", "Custom", notepad.Section);
+            Equal("launch target", "notepad.exe", notepad.Target);
+            Check("custom runnable", notepad.Runnable, "Notepad should be runnable");
+        }
+
+        private static void ViewWindowsSection()
+        {
+            Config c = Config.CreateDefault();
+            List<ListItem> items = Library.View(c, ViewTab.Windows11, "Desktops", null);
+            Equal("no headers", 0, Headers(items).Count);
+            Equal("count", 5, items.Count);
+            foreach (string r in Refs(items))
+                Check("desktops only " + r, r.StartsWith("win:desktops."), "unexpected " + r);
+
+            List<ListItem> all = Library.View(c, ViewTab.Windows11, null, null);
+            Equal("all sections headers", string.Join(",", WindowsShortcuts.Sections), Join(Headers(all)));
+
+            Equal("custom tab", "custom:Notepad,custom:Calculator,custom:Downloads folder,custom:GitHub",
+                Join(Refs(Library.View(c, ViewTab.Custom, null, null))));
+
+            Entry copy = Library.Find(c, "win:text.copy");
+            Equal("copy keycaps", "Ctrl,C", string.Join(",", copy.Keycaps));
+            Equal("copy shortcut keys", "Ctrl+C", copy.Shortcut.KeysText);
+            Entry lockPc = Library.Find(c, "win:winkey.lock");
+            Check("lock not runnable", !lockPc.Runnable, "Win+L must be reference only");
+            Equal("lock keycaps", "Win,L", string.Join(",", lockPc.Keycaps));
+        }
+
+        private static void ViewRecentAndFavorites()
+        {
+            Config c = Config.CreateDefault();
+            c.Recent.Add("win:text.copy");
+            c.Recent.Add("win:nope");
+            c.Recent.Add("custom:Notepad");
+            Equal("recent", "win:text.copy,custom:Notepad", Join(Refs(Library.View(c, ViewTab.Recent, null, null))));
+            Equal("recent no headers", 0, Headers(Library.View(c, ViewTab.Recent, null, null)).Count);
+            c.Favorites.Add("custom:GitHub");
+            c.Favorites.Add("win:winkey.settings");
+            Equal("favorites", "custom:GitHub,win:winkey.settings", Join(Refs(Library.View(c, ViewTab.Favorites, null, null))));
+        }
+
+        private static bool Found(string query, string reference)
+        {
+            return Refs(Library.View(Config.CreateDefault(), ViewTab.Recent, null, query)).Contains(reference);
+        }
+
+        private static void SearchFinds()
+        {
+            Check("win v", Found("win v", "win:winkey.clipboard-history"), "win v should find clipboard history");
+            Check("COPY", Found("COPY", "win:text.copy"), "COPY should find text.copy");
+            Check("ctrl insert", Found("ctrl insert", "win:text.copy"), "Also text is searchable");
+            Check("control c", Found("control c", "win:text.copy"), "control = ctrl");
+            Check("windows+e", Found("windows+e", "win:winkey.explorer"), "windows = win, + splits");
+            Check("notepad", Found("notepad", "custom:Notepad"), "customs are searched");
+            Check("section words", Found("taskbar settings", "win:taskbar.settings"), "section text searchable");
+            Equal("nothing", 0, Refs(Library.View(Config.CreateDefault(), ViewTab.All, null, "zzzz")).Count);
+            Check("search grouped", Headers(Library.View(Config.CreateDefault(), ViewTab.Recent, null, "copy")).Count > 0,
+                "search results have section headers");
+        }
+
+        private static void OddQueries()
+        {
+            Config c = Config.CreateDefault();
+            int all = Library.View(c, ViewTab.Custom, null, null).Count;
+            foreach (string q in new string[] { "   ", "+", "++ " })
+                Equal("blank-like '" + q + "'", all, Library.View(c, ViewTab.Custom, null, q).Count);
+            foreach (string q in new string[] { "(", "*", "\\", "[", "\"" })
+                Library.View(c, ViewTab.All, null, q);   // must not throw
+        }
+
+        private static void PruneDropsUnknownRefs()
+        {
+            Config c = Config.CreateDefault();
+            c.Favorites.Add("win:nope");
+            c.Favorites.Add("win:text.copy");
+            c.Recent.Add("custom:Gone");
+            c.Prune(r => Library.Find(c, r) != null);
+            Equal("favorites", "win:text.copy", Join(c.Favorites));
+            Equal("recent", "", Join(c.Recent));
         }
 
         private static void BadRefListsIgnored()
