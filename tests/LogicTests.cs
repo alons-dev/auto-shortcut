@@ -30,6 +30,7 @@ namespace AutoShortcut.Tests
             Test("SearchFinds", SearchFinds);
             Test("OddQueries", OddQueries);
             Test("PruneDropsUnknownRefs", PruneDropsUnknownRefs);
+            Test("AppIconFound", AppIconFound);
 
             Console.WriteLine(_passed + " passed, " + _failed + " failed");
             return _failed;
@@ -373,6 +374,32 @@ namespace AutoShortcut.Tests
             c.Prune(r => Library.Find(c, r) != null);
             Equal("favorites", "win:text.copy", Join(c.Favorites));
             Equal("recent", "", Join(c.Recent));
+        }
+
+        // ---- App icon ----
+
+        private static void AppIconFound()
+        {
+            string saved = Environment.GetEnvironmentVariable("AUTOSHORTCUT_HOME");
+            try
+            {
+                string root = Environment.GetEnvironmentVariable("AUTOSHORTCUT_TEST_ROOT");   // set by run-tests.ps1
+                Environment.SetEnvironmentVariable("AUTOSHORTCUT_HOME", root);
+                string path = Ui.AppIconPath();
+                Check("found", path != null && System.IO.File.Exists(path), "icon not found under " + root);
+                Check("png", path != null && path.EndsWith("assets\\icon.png", StringComparison.OrdinalIgnoreCase), "unexpected path " + path);
+                using (System.Drawing.Icon icon = Ui.CreateTrayIcon())
+                    Check("tray icon built", icon != null && icon.Width > 0, "no tray icon");
+
+                Environment.SetEnvironmentVariable("AUTOSHORTCUT_HOME", "C:\\does-not-exist");
+                Equal("missing -> null", null, Ui.AppIconPath());
+                using (System.Drawing.Icon icon = Ui.CreateTrayIcon())
+                    Check("glyph fallback", icon != null, "fallback icon missing");
+            }
+            finally
+            {
+                Environment.SetEnvironmentVariable("AUTOSHORTCUT_HOME", saved);
+            }
         }
 
         private static void BadRefListsIgnored()

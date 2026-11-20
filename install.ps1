@@ -25,7 +25,7 @@
 
     $Repo     = 'alons-dev/auto-shortcut'
     $Branch   = 'main'
-    $Version  = '0.1.0'
+    $Version  = '0.2.0'
     $AppDir   = Join-Path $env:LOCALAPPDATA 'Programs\AutoShortcut'
     $PsExe    = Join-Path $env:WINDIR 'System32\WindowsPowerShell\v1.0\powershell.exe'
     $Conhost  = Join-Path $env:WINDIR 'System32\conhost.exe'
@@ -43,38 +43,24 @@
         Start-Sleep -Milliseconds 500
     }
 
-    # Icon: blue rounded square with the keyboard glyph from the Windows icon font.
-    # Saved as an .ico holding several PNG images (valid since Windows Vista).
-    function New-AppIcon([string]$Path) {
+    # Icon for the shortcuts and Settings > Apps: assets\icon.png resized to the
+    # usual icon sizes and saved as an .ico holding PNG images (valid since Vista).
+    function New-AppIcon([string]$Png, [string]$Path) {
         Add-Type -AssemblyName System.Drawing
-        $fontName = 'Segoe Fluent Icons'
-        $probe = New-Object System.Drawing.Font($fontName, 10)
-        if ($probe.Name -ne $fontName) { $fontName = 'Segoe MDL2 Assets' }
-        $probe.Dispose()
-
-        $images = foreach ($size in 256, 48, 32, 16) {
+        $source = [System.Drawing.Image]::FromFile($Png)
+        $images = foreach ($size in 256, 48, 32, 24, 16) {
             $bmp = New-Object System.Drawing.Bitmap $size, $size
             $g = [System.Drawing.Graphics]::FromImage($bmp)
-            $g.SmoothingMode = 'AntiAlias'
-            $g.TextRenderingHint = 'AntiAliasGridFit'
-            $m = [Math]::Max(1, [int]($size / 32)); $w = $size - 2 * $m; $d = [int]($size * 0.36)
-            $shape = New-Object System.Drawing.Drawing2D.GraphicsPath
-            $shape.AddArc($m, $m, $d, $d, 180, 90)
-            $shape.AddArc($m + $w - $d, $m, $d, $d, 270, 90)
-            $shape.AddArc($m + $w - $d, $m + $w - $d, $d, $d, 0, 90)
-            $shape.AddArc($m, $m + $w - $d, $d, $d, 90, 90)
-            $shape.CloseFigure()
-            $g.FillPath((New-Object System.Drawing.SolidBrush ([System.Drawing.Color]::FromArgb(0, 103, 192))), $shape)
-            $font = New-Object System.Drawing.Font($fontName, [float]($size * 0.55), [System.Drawing.GraphicsUnit]::Pixel)
-            $fmt = New-Object System.Drawing.StringFormat
-            $fmt.Alignment = 'Center'; $fmt.LineAlignment = 'Center'
-            $g.DrawString([string][char]0xE765, $font, [System.Drawing.Brushes]::White, (New-Object System.Drawing.RectangleF 0, 0, $size, $size), $fmt)
-            $g.Dispose(); $font.Dispose()
+            $g.InterpolationMode = 'HighQualityBicubic'
+            $g.PixelOffsetMode = 'HighQuality'
+            $g.DrawImage($source, 0, 0, $size, $size)
+            $g.Dispose()
             $ms = New-Object System.IO.MemoryStream
             $bmp.Save($ms, [System.Drawing.Imaging.ImageFormat]::Png)
             $bmp.Dispose()
             ,@($size, $ms.ToArray())
         }
+        $source.Dispose()
 
         $fs = [System.IO.File]::Create($Path)
         $bw = New-Object System.IO.BinaryWriter $fs
@@ -142,6 +128,8 @@
         if (Test-Path "$AppDir\src") { Remove-Item "$AppDir\src" -Recurse -Force }
         Copy-Item "$source\src" "$AppDir\src" -Recurse
         Copy-Item "$source\run.ps1", "$source\uninstall.ps1", "$source\LICENSE" $AppDir -Force
+        New-Item -ItemType Directory -Force -Path "$AppDir\assets" | Out-Null
+        Copy-Item "$source\assets\icon.png" "$AppDir\assets\icon.png" -Force
         # Remove the "downloaded from the Internet" mark so Windows doesn't object to running them.
         Get-ChildItem $AppDir -Recurse -File | Unblock-File
 
@@ -157,7 +145,7 @@
 
         # 5. Icon and shortcuts
         Step 'Creating shortcuts (Start menu and Windows Startup)'
-        New-AppIcon "$AppDir\icon.ico"
+        New-AppIcon "$AppDir\assets\icon.png" "$AppDir\icon.ico"
         # 'Create': if the folder doesn't exist (it happens with Startup for some users) it's
         # created; without this option .NET returns an empty path.
         $startMenu = [Environment]::GetFolderPath('Programs', 'Create')
@@ -191,9 +179,12 @@
         }
         if (-not $running) { throw "AutoShortcut didn't start. Check %APPDATA%\AutoShortcut\error.log if it exists." }
 
-        $hotkey = 'Win+Shift+A'
+        $hotkey = 'Win+Shift+Z'
         $cfg = Join-Path $env:APPDATA 'AutoShortcut\shortcuts.json'
         if (Test-Path $cfg) { try { $hotkey = (Get-Content $cfg -Raw -Encoding UTF8 | ConvertFrom-Json).hotkey } catch { } }
+        # The app moves the old default (Win+Shift+A, which Windows 11 uses) to Win+Shift+Z
+        # on start; it may not have saved it yet.
+        if (-not $hotkey -or $hotkey -eq 'Win+Shift+A') { $hotkey = 'Win+Shift+Z' }
 
         Write-Host ''
         Write-Host 'Done. AutoShortcut is running and will start automatically with Windows.' -ForegroundColor Green

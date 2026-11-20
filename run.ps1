@@ -19,6 +19,9 @@ $files = Get-ChildItem $src -Filter *.cs | ForEach-Object { $_.FullName }
 # The classes are "internal": Add-Type warns that they aren't public; that's expected.
 Add-Type -Path $files -ReferencedAssemblies System.Windows.Forms, System.Drawing, System.Web.Extensions, Accessibility -WarningAction SilentlyContinue
 
+# Code compiled in memory doesn't know its folder: tell it, so it finds assets\icon.png.
+$env:AUTOSHORTCUT_HOME = $PSScriptRoot
+
 $program = [AppDomain]::CurrentDomain.GetAssemblies() |
     ForEach-Object { $_.GetType('AutoShortcut.Program', $false) } |
     Where-Object { $_ } | Select-Object -First 1

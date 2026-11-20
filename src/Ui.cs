@@ -1,6 +1,7 @@
 using System;
 using System.Drawing;
 using System.Drawing.Drawing2D;
+using System.IO;
 using System.Runtime.InteropServices;
 using System.Windows.Forms;
 
@@ -79,9 +80,65 @@ namespace AutoShortcut
         [DllImport("user32.dll")]
         private static extern bool DestroyIcon(IntPtr handle);
 
-        // Tray icon: the keyboard glyph, white on a dark taskbar or black on a light
-        // one, like Windows' own tray icons.
+        // The app icon (assets\icon.png). run.ps1 sets AUTOSHORTCUT_HOME to its folder,
+        // because code compiled in memory doesn't know where it came from; the .exe
+        // built by build.ps1 lives in bin\, next to assets\. null if it isn't there.
+        public static string AppIconPath()
+        {
+            string home = Environment.GetEnvironmentVariable("AUTOSHORTCUT_HOME");
+            string[] roots = string.IsNullOrEmpty(home)
+                ? new string[] { Path.Combine(Application.StartupPath, "..") }
+                : new string[] { home };
+            foreach (string root in roots)
+            {
+                try
+                {
+                    string path = Path.GetFullPath(Path.Combine(root, "assets", "icon.png"));
+                    if (File.Exists(path)) return path;
+                }
+                catch (ArgumentException) { }
+                catch (NotSupportedException) { }
+            }
+            return null;
+        }
+
+        // Tray icon: the app icon, or (if it can't be found) the keyboard glyph,
+        // white on a dark taskbar or black on a light one.
         public static Icon CreateTrayIcon()
+        {
+            string png = AppIconPath();
+            if (png != null)
+            {
+                try { return IconFromPng(png, SystemInformation.SmallIconSize.Width); }
+                catch (Exception) { }   // unreadable file: use the glyph
+            }
+            return GlyphIcon();
+        }
+
+        private static Icon IconFromPng(string path, int size)
+        {
+            using (Image source = Image.FromFile(path))
+            using (Bitmap bmp = new Bitmap(size, size))
+            {
+                using (Graphics g = Graphics.FromImage(bmp))
+                {
+                    g.InterpolationMode = InterpolationMode.HighQualityBicubic;
+                    g.PixelOffsetMode = PixelOffsetMode.HighQuality;
+                    g.DrawImage(source, 0, 0, size, size);
+                }
+                return ToIcon(bmp);
+            }
+        }
+
+        // Icon.FromHandle doesn't copy the icon: clone it and free the original.
+        private static Icon ToIcon(Bitmap bmp)
+        {
+            IntPtr handle = bmp.GetHicon();
+            try { using (Icon temp = Icon.FromHandle(handle)) return (Icon)temp.Clone(); }
+            finally { DestroyIcon(handle); }
+        }
+
+        private static Icon GlyphIcon()
         {
             int size = SystemInformation.SmallIconSize.Width;
             Color color = Theme.TaskbarIsDark() ? Color.White : Color.Black;
@@ -97,10 +154,7 @@ namespace AutoShortcut
                     center.LineAlignment = StringAlignment.Center;
                     g.DrawString(GlyphKeyboard, font, brush, new RectangleF(0, 0, size, size), center);
                 }
-                // Icon.FromHandle doesn't copy the icon: clone it and free the original.
-                IntPtr handle = bmp.GetHicon();
-                try { using (Icon temp = Icon.FromHandle(handle)) return (Icon)temp.Clone(); }
-                finally { DestroyIcon(handle); }
+                return ToIcon(bmp);
             }
         }
 

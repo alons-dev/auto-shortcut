@@ -23,5 +23,6 @@ catch {
     exit 1
 }
 
+$env:AUTOSHORTCUT_TEST_ROOT = $root   # in-memory assemblies have no location on disk
 $failed = [AutoShortcut.Tests.LogicTests]::Run()
 exit $failed
