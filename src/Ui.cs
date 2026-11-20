@@ -69,6 +69,12 @@ namespace AutoShortcut
         public static readonly string GlyphAdd = ((char)0xE710).ToString();
         public static readonly string GlyphSettings = ((char)0xE713).ToString();
         public static readonly string GlyphKeyboard = ((char)0xE765).ToString();
+        public static readonly string GlyphSearch = ((char)0xE721).ToString();
+        public static readonly string GlyphStar = ((char)0xE734).ToString();
+        public static readonly string GlyphStarFilled = ((char)0xE735).ToString();
+        public static readonly string GlyphClose = ((char)0xE711).ToString();
+        public static readonly string GlyphLeft = ((char)0xE76B).ToString();
+        public static readonly string GlyphRight = ((char)0xE76C).ToString();
 
         [DllImport("user32.dll")]
         private static extern bool DestroyIcon(IntPtr handle);
