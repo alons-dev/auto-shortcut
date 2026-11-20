@@ -134,7 +134,11 @@ Desde **Configuración › Aplicaciones › AutoShortcut › Desinstalar**, o co
 & "$env:LOCALAPPDATA\Programs\AutoShortcut\uninstall.ps1"
 ```
 
-Tu lista se queda en `%APPDATA%\AutoShortcut` por si vuelves. Para borrarla también, añade `-RemoveSettings`.
+Tu lista se queda en `%APPDATA%\AutoShortcut` por si vuelves. Para borrarla también, añade `-RemoveSettings` al comando de arriba. Si ya desinstalaste sin esa opción (el desinstalador se borra a sí mismo), borra la carpeta directamente:
+
+```powershell
+Remove-Item "$env:APPDATA\AutoShortcut" -Recurse -Force
+```
 
 ## Limitaciones
 

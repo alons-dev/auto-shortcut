@@ -37,9 +37,11 @@ Remove-Item (Join-Path $programs 'AutoShortcut.lnk') -Force -ErrorAction Silentl
 Remove-Item (Join-Path $programs 'Startup\AutoShortcut.lnk') -Force -ErrorAction SilentlyContinue
 Remove-Item $RegKey -Recurse -Force -ErrorAction SilentlyContinue
 
-# 3. Archivos de la app (salimos de la carpeta antes de borrarla)
+# 3. Archivos de la app. Si la terminal esta dentro de esa carpeta, Windows no deja
+#    borrarla: solo en ese caso nos vamos a la carpeta del usuario. (Si se lanza con &,
+#    el cambio de carpeta afecta a la sesion de quien lo ejecuta: no hacerlo sin motivo.)
 Write-Host "  - Borrando $AppDir"
-Set-Location $env:TEMP
+if ((Get-Location).ProviderPath -like "$AppDir*") { Set-Location $HOME }
 Remove-Item $AppDir -Recurse -Force -ErrorAction SilentlyContinue
 
 # 4. Tu lista de atajos se conserva salvo que se pida lo contrario
@@ -52,6 +54,7 @@ Write-Host ''
 Write-Host 'AutoShortcut se ha desinstalado.' -ForegroundColor Green
 if (-not $RemoveSettings -and (Test-Path $Settings)) {
     Write-Host "  Tu lista de atajos sigue en $Settings por si vuelves a instalarlo."
+    Write-Host '  Para borrarla tambien:  Remove-Item "$env:APPDATA\AutoShortcut" -Recurse -Force'
 }
 Write-Host ''
 
