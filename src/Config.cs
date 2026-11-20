@@ -13,7 +13,7 @@ namespace AutoShortcut
     //     "hotkey": "Win+Shift+Z",
     //     "shortcuts": [
     //       { "name": "Notepad", "run": "notepad.exe" },
-    //       { "name": "Lock screen", "keys": "Win+L" }
+    //       { "name": "Reopen closed tab", "keys": "Ctrl+Shift+T" }
     //     ],
     //     "favorites": ["win:winkey.clipboard-history", "custom:Notepad"],
     //     "recent": ["win:text.copy"]
