@@ -51,8 +51,9 @@ namespace AutoShortcut
             AutoScroll = true;
             BackColor = theme.Background;
             ForeColor = theme.Foreground;
+            Text = "Shortcut list";   // not drawn; the window's name for accessibility tools
             AccessibleRole = AccessibleRole.List;
-            AccessibleName = "Shortcuts";
+            AccessibleName = "Shortcut list";
         }
 
         public int ItemCount { get { return _items.Count; } }

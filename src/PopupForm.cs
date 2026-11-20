@@ -7,28 +7,30 @@ using System.Windows.Forms;
 namespace AutoShortcut
 {
     // The pop-up: borderless, always-on-top window in the bottom-right corner of the
-    // monitor where the mouse is. It shows the shortcut list and hides when it loses
-    // focus or on Esc.
+    // monitor where the mouse is. It hides when it loses focus or on Esc.
     //
-    // It never changes the list itself: it raises events (ShortcutInvoked,
-    // EditRequested...) and TrayApp decides what to do.
+    //   Shortcuts   Win + Shift + Z               [search] [+] [gear]
+    //   All  Recent  Favorites  Custom  Windows 11
+    //   (All sections) (Text editing) (General) ...      <- Windows 11 tab only
+    //   list (ShortcutList)
+    //
+    // It never changes the config itself: it raises events (EntryInvoked,
+    // FavoriteToggled, EditRequested...) and TrayApp decides what to do.
     internal sealed class PopupForm : Form
     {
         // Sizes at 100 % scale (multiplied with Ui.S).
-        private const int PopupWidth = 360;
+        private const int PopupWidth = 440;
         private const int HeaderHeight = 48;
-        private const int RowHeight = 40;
-        private const int SidePad = 6;
+        private const int TabsHeight = 36;
+        private const int ChipsHeight = 40;
+        private const int MaxListHeight = 560;
         private const int BottomPad = 8;
-        private const int MaxListHeight = 480;
         private const int EdgeGap = 12;   // gap to the screen edge and the taskbar
+
+        private static readonly string[] TabLabels = { "All", "Recent", "Favorites", "Custom", "Windows 11" };
 
         [DllImport("user32.dll")]
         private static extern IntPtr GetForegroundWindow();
-
-        // Dark scrollbar (same trick File Explorer uses).
-        [DllImport("uxtheme.dll", CharSet = CharSet.Unicode)]
-        private static extern int SetWindowTheme(IntPtr hwnd, string appName, string idList);
 
         private const int WS_EX_TOOLWINDOW = 0x80;   // keep it out of Alt+Tab and the taskbar
         private const int CS_DROPSHADOW = 0x20000;   // soft shadow, like menus
@@ -36,21 +38,30 @@ namespace AutoShortcut
         private readonly Theme _theme;
         private readonly Label _title;
         private readonly Label _hotkeyLabel;
+        private readonly IconButton _searchButton;
         private readonly IconButton _addButton;
         private readonly IconButton _settingsButton;
-        private readonly Panel _list;
-        private readonly ContextMenuStrip _rowMenu;
-        private readonly ToolStripItem _moveUpItem;
-        private readonly ToolStripItem _moveDownItem;
+        private readonly InputBox _searchBox;
+        private readonly IconButton _closeSearch;
+        private readonly TabStrip _tabs;
+        private readonly ChipBar _chips;
+        private readonly ShortcutList _list;
+        private readonly ContextMenuStrip _menu;
         private readonly ToolTip _tips = new ToolTip();
-        private int _rowCount;
+
+        private Config _config = new Config();
+        private ViewTab _tab = ViewTab.All;
+        private string _section;          // Windows 11 chip; null = all sections
+        private bool _searching;
+        private Entry _menuEntry;
         private DateTime _hiddenAt = DateTime.MinValue;
         private IntPtr _previousWindow;
 
-        public event Action<Shortcut> ShortcutInvoked;   // click on a shortcut
+        public event Action<Entry> EntryInvoked;          // click on a runnable shortcut
+        public event Action<Entry> FavoriteToggled;       // star or menu
         public event Action AddRequested;                 // + button
         public event Action SettingsRequested;            // settings button
-        public event Action<int> EditRequested;           // menu > Edit (index)
+        public event Action<int> EditRequested;           // menu > Edit (custom index)
         public event Action<int> DeleteRequested;         // menu > Delete
         public event Action<int, int> MoveRequested;      // menu > Move (index, -1 up / +1 down)
 
@@ -81,6 +92,10 @@ namespace AutoShortcut
             _hotkeyLabel.ForeColor = _theme.Subtle;
             _hotkeyLabel.Font = new Font("Segoe UI", 8.25F);
 
+            _searchButton = new IconButton(Ui.GlyphSearch, "Search", _theme);
+            _searchButton.Click += delegate { OpenSearch(""); };
+            _tips.SetToolTip(_searchButton, "Search (or just start typing)");
+
             _addButton = new IconButton(Ui.GlyphAdd, "Add shortcut", _theme);
             _addButton.Click += delegate { Raise(AddRequested); };
             _tips.SetToolTip(_addButton, "Add shortcut  (right-click one to edit it)");
@@ -89,129 +104,251 @@ namespace AutoShortcut
             _settingsButton.Click += delegate { Raise(SettingsRequested); };
             _tips.SetToolTip(_settingsButton, "Settings");
 
-            _list = new Panel();
-            _list.AutoScroll = true;
-            _list.Padding = new Padding(Ui.S(SidePad), 0, Ui.S(SidePad), 0);
-            _list.HandleCreated += delegate
+            int width = Ui.S(PopupWidth);
+            _closeSearch = new IconButton(Ui.GlyphClose, "Close search", _theme);
+            _closeSearch.Click += delegate { CloseSearch(); };
+            _closeSearch.Visible = false;
+            _searchBox = new InputBox(_theme, width - Ui.S(16) - Ui.S(8) - _closeSearch.Width - Ui.S(8), "Search");
+            _searchBox.Font = Font;
+            _searchBox.Location = new Point(Ui.S(16), (Ui.S(HeaderHeight) - _searchBox.Height) / 2);
+            _searchBox.Visible = false;
+            _searchBox.Box.TextChanged += delegate { RefreshList(false); };
+
+            _tabs = new TabStrip(_theme, TabLabels);
+            _tabs.SelectedChanged += delegate(int i)
             {
-                SetWindowTheme(_list.Handle, _theme.Dark ? "DarkMode_Explorer" : "Explorer", null);
+                _tab = (ViewTab)i;
+                if (_searching) CloseSearch();
+                UpdateLayout();
+                RefreshList(false);
             };
 
-            // Right-click menu on a shortcut.
-            _rowMenu = new ContextMenuStrip();
-            MenuRenderer.Apply(_rowMenu, _theme);
-            _rowMenu.Items.Add("Edit", null, delegate { RaiseForMenuRow(EditRequested); });
-            _moveUpItem = _rowMenu.Items.Add("Move up", null, delegate { RaiseMove(-1); });
-            _moveDownItem = _rowMenu.Items.Add("Move down", null, delegate { RaiseMove(+1); });
-            _rowMenu.Items.Add(new ToolStripSeparator());
-            _rowMenu.Items.Add("Delete", null, delegate { RaiseForMenuRow(DeleteRequested); });
-            _rowMenu.Opening += delegate
+            string[] chipLabels = new string[WindowsShortcuts.Sections.Length + 1];
+            chipLabels[0] = "All sections";
+            Array.Copy(WindowsShortcuts.Sections, 0, chipLabels, 1, WindowsShortcuts.Sections.Length);
+            _chips = new ChipBar(_theme, chipLabels);
+            _chips.SelectedChanged += delegate(int i)
             {
-                ShortcutRow row = _rowMenu.SourceControl as ShortcutRow;
-                _moveUpItem.Enabled = row != null && row.Index > 0;
-                _moveDownItem.Enabled = row != null && row.Index < _rowCount - 1;
+                _section = i == 0 ? null : WindowsShortcuts.Sections[i - 1];
+                RefreshList(false);
             };
+
+            _list = new ShortcutList(_theme);
+            _list.Font = Font;
+            _list.IsFavorite = delegate(Entry e) { return _config.IsFavorite(e.Ref); };
+            _list.EntryClicked += delegate(Entry e) { Action<Entry> h = EntryInvoked; if (h != null) h(e); };
+            _list.StarClicked += delegate(Entry e) { Action<Entry> h = FavoriteToggled; if (h != null) h(e); };
+            _list.EntryContextMenu += ShowMenu;
+
+            _menu = new ContextMenuStrip();
+            MenuRenderer.Apply(_menu, _theme);
 
             Controls.Add(_title);
             Controls.Add(_hotkeyLabel);
+            Controls.Add(_searchButton);
             Controls.Add(_addButton);
             Controls.Add(_settingsButton);
+            Controls.Add(_searchBox);
+            Controls.Add(_closeSearch);
+            Controls.Add(_tabs);
+            Controls.Add(_chips);
             Controls.Add(_list);
             ResumeLayout(false);
 
-            SetShortcuts(new List<Shortcut>(), "");
+            UpdateLayout();
+            RefreshList(false);
         }
 
         // The window that was in front before the pop-up opened: keys are sent there.
         public IntPtr PreviousWindow { get { return _previousWindow; } }
 
-        public void SetShortcuts(IList<Shortcut> shortcuts, string hotkeyText)
+        // New config (after loading or saving): same tab, chip, search and scroll.
+        public void SetData(Config config, string hotkeyText)
         {
-            SuspendLayout();
-            _list.SuspendLayout();
-
-            Control[] old = new Control[_list.Controls.Count];
-            _list.Controls.CopyTo(old, 0);
-            foreach (Control c in old) c.Dispose();
-
-            int width = Ui.S(PopupWidth);
-            int rowHeight = Ui.S(RowHeight);
-            int listHeight;
-            _rowCount = shortcuts.Count;
-
-            if (shortcuts.Count == 0)
-            {
-                Label empty = new Label();
-                empty.Text = "No shortcuts yet. Add one with +";
-                empty.ForeColor = _theme.Subtle;
-                empty.AutoSize = true;
-                empty.Location = new Point(Ui.S(10), Ui.S(4));
-                _list.Controls.Add(empty);
-                listHeight = Ui.S(32);
-            }
-            else
-            {
-                // With Dock = Top the last control added ends up on top,
-                // so rows are added from the bottom up.
-                for (int i = shortcuts.Count - 1; i >= 0; i--)
-                {
-                    ShortcutRow row = new ShortcutRow(shortcuts[i], i, _theme);
-                    row.Font = Font;
-                    row.Height = rowHeight;
-                    row.Dock = DockStyle.Top;
-                    row.MouseClick += OnRowClick;
-                    row.ContextMenuStrip = _rowMenu;
-                    _list.Controls.Add(row);
-                }
-                int maxHeight = Math.Min(Ui.S(MaxListHeight), (int)(Screen.PrimaryScreen.WorkingArea.Height * 0.75));
-                listHeight = Math.Min(shortcuts.Count * rowHeight, maxHeight);
-            }
-
-            // Header: "Shortcuts  Win + Shift + A"  ...  [+] [gear]
+            _config = config;
             _hotkeyLabel.Text = hotkeyText ?? "";
+            UpdateLayout();
+            RefreshList(true);
+        }
+
+        public void SelectTab(ViewTab tab)
+        {
+            if (_searching) CloseSearch();
+            _tab = tab;
+            _tabs.Selected = (int)tab;
+            UpdateLayout();
+            RefreshList(false);
+        }
+
+        // ---- Layout ----
+
+        private void UpdateLayout()
+        {
+            int width = Ui.S(PopupWidth);
+            Rectangle area = Screen.FromPoint(Cursor.Position).WorkingArea;
+            int fixedPart = Ui.S(HeaderHeight) + Ui.S(TabsHeight) + Ui.S(ChipsHeight) + Ui.S(BottomPad);
+            int listMax = Math.Min(Ui.S(MaxListHeight), (int)(area.Height * 0.75) - fixedPart);
+            int height = fixedPart + Math.Max(Ui.S(120), listMax);
+
+            // Header: "Shortcuts  Win + Shift + Z"  ...  [search] [+] [gear]
             _hotkeyLabel.Location = new Point(_title.Left + _title.PreferredWidth + Ui.S(6), Ui.S(18));
             _settingsButton.Location = new Point(width - Ui.S(8) - _settingsButton.Width, Ui.S(8));
             _addButton.Location = new Point(_settingsButton.Left - Ui.S(2) - _addButton.Width, Ui.S(8));
+            _searchButton.Location = new Point(_addButton.Left - Ui.S(2) - _searchButton.Width, Ui.S(8));
+            _closeSearch.Location = new Point(width - Ui.S(8) - _closeSearch.Width, Ui.S(8));
 
-            _list.Bounds = new Rectangle(0, Ui.S(HeaderHeight), width, listHeight);
-            ClientSize = new Size(width, Ui.S(HeaderHeight) + listHeight + Ui.S(BottomPad));
+            _title.Visible = _hotkeyLabel.Visible = !_searching;
+            _searchButton.Visible = _addButton.Visible = _settingsButton.Visible = !_searching;
+            _searchBox.Visible = _closeSearch.Visible = _searching;
+            _tabs.Dimmed = _searching;
 
-            _list.ResumeLayout(true);
-            ResumeLayout(true);
-            if (Visible) PlaceBottomRight();   // height changed: reposition
+            int y = Ui.S(HeaderHeight);
+            _tabs.Bounds = new Rectangle(0, y, width, Ui.S(TabsHeight));
+            y += Ui.S(TabsHeight);
+
+            // The chips only show on the Windows 11 tab; elsewhere the list takes their
+            // place, so the window keeps the same size and doesn't jump.
+            bool chips = _tab == ViewTab.Windows11 && !_searching;
+            _chips.Visible = chips;
+            if (chips)
+            {
+                _chips.Bounds = new Rectangle(0, y, width, Ui.S(ChipsHeight));
+                y += Ui.S(ChipsHeight);
+            }
+            _list.Bounds = new Rectangle(0, y, width, height - Ui.S(BottomPad) - y);
+
+            if (ClientSize != new Size(width, height))
+            {
+                ClientSize = new Size(width, height);
+                if (Visible) PlaceBottomRight();
+            }
         }
 
-        private void OnRowClick(object sender, MouseEventArgs e)
+        private string Query
         {
-            if (e.Button != MouseButtons.Left) return;
-            ShortcutRow row = (ShortcutRow)sender;
-            Action<Shortcut> handler = ShortcutInvoked;
-            if (handler != null) handler(row.Shortcut);
+            get { return _searching ? _searchBox.Text : null; }
+        }
+
+        private void RefreshList(bool keepScroll)
+        {
+            string query = Query;
+            bool hasQuery = query != null && query.Replace("+", " ").Trim().Length > 0;
+            string empty;
+            if (hasQuery) empty = "No shortcuts match \"" + query.Trim() + "\".";
+            else if (_searching) empty = "Type to search all shortcuts.";
+            else if (_tab == ViewTab.Recent) empty = "Shortcuts you run will show up here.";
+            else if (_tab == ViewTab.Favorites) empty = "Star a shortcut to keep it here.";
+            else empty = "No shortcuts yet. Add one with +";
+
+            List<ListItem> items = _searching && !hasQuery
+                ? new List<ListItem>()
+                : Library.View(_config, _tab, _section, query);
+            _list.SetItems(items, empty, keepScroll);
+        }
+
+        // ---- Search ----
+
+        private void OpenSearch(string initial)
+        {
+            if (!_searching)
+            {
+                _searching = true;
+                UpdateLayout();
+            }
+            _searchBox.Text = initial;
+            _searchBox.Box.Focus();
+            _searchBox.Box.SelectionStart = _searchBox.Text.Length;
+            RefreshList(false);
+        }
+
+        private void CloseSearch()
+        {
+            if (!_searching) return;
+            _searching = false;
+            _searchBox.Text = "";
+            UpdateLayout();
+            RefreshList(false);
+        }
+
+        protected override void OnKeyPress(KeyPressEventArgs e)
+        {
+            base.OnKeyPress(e);
+            // Typing a letter or number anywhere in the pop-up starts a search.
+            if (!_searching && char.IsLetterOrDigit(e.KeyChar))
+            {
+                e.Handled = true;
+                OpenSearch(e.KeyChar.ToString());
+            }
+        }
+
+        protected override void OnKeyDown(KeyEventArgs e)
+        {
+            base.OnKeyDown(e);
+            if (e.KeyCode != Keys.Escape) return;
+            e.Handled = true;
+            e.SuppressKeyPress = true;
+            if (_searching) CloseSearch();   // first Esc: leave the search
+            else HidePopup();                // second Esc: close
+        }
+
+        // ---- Right-click menu ----
+
+        private void ShowMenu(Entry entry, Point screen)
+        {
+            _menuEntry = entry;
+            _menu.Items.Clear();
+            bool favorite = _config.IsFavorite(entry.Ref);
+            string favoriteText = favorite ? "Remove from favorites" : "Add to favorites";
+
+            if (entry.IsCustom)
+            {
+                int index = entry.CustomIndex;
+                _menu.Items.Add("Edit", null, delegate { RaiseLater(EditRequested, index); });
+                if (_tab == ViewTab.Custom && !_searching)
+                {
+                    ToolStripItem up = _menu.Items.Add("Move up", null, delegate { RaiseMove(index, -1); });
+                    ToolStripItem down = _menu.Items.Add("Move down", null, delegate { RaiseMove(index, +1); });
+                    up.Enabled = index > 0;
+                    down.Enabled = index < _config.Shortcuts.Count - 1;
+                }
+                _menu.Items.Add(new ToolStripSeparator());
+                _menu.Items.Add(favoriteText, null, delegate { RaiseFavorite(); });
+                _menu.Items.Add(new ToolStripSeparator());
+                _menu.Items.Add("Delete", null, delegate { RaiseLater(DeleteRequested, index); });
+            }
+            else
+            {
+                _menu.Items.Add(favoriteText, null, delegate { RaiseFavorite(); });
+            }
+            _menu.Show(screen);
         }
 
         // Menu events are raised once the menu has closed (BeginInvoke), so the
         // handler can open a window or rebuild the list without stepping on it.
-        private void RaiseForMenuRow(Action<int> handler)
+        private void RaiseLater(Action<int> handler, int index)
         {
-            ShortcutRow row = _rowMenu.SourceControl as ShortcutRow;
-            if (row == null || handler == null) return;
-            int index = row.Index;
-            BeginInvoke((MethodInvoker)delegate { handler(index); });
+            if (handler != null) BeginInvoke((MethodInvoker)delegate { handler(index); });
         }
 
-        private void RaiseMove(int delta)
+        private void RaiseMove(int index, int delta)
         {
-            ShortcutRow row = _rowMenu.SourceControl as ShortcutRow;
             Action<int, int> handler = MoveRequested;
-            if (row == null || handler == null) return;
-            int index = row.Index;
-            BeginInvoke((MethodInvoker)delegate { handler(index, delta); });
+            if (handler != null) BeginInvoke((MethodInvoker)delegate { handler(index, delta); });
+        }
+
+        private void RaiseFavorite()
+        {
+            Entry entry = _menuEntry;
+            Action<Entry> handler = FavoriteToggled;
+            if (handler != null && entry != null) BeginInvoke((MethodInvoker)delegate { handler(entry); });
         }
 
         private void Raise(Action handler)
         {
             if (handler != null) BeginInvoke((MethodInvoker)delegate { handler(); });
         }
+
+        // ---- Window ----
 
         protected override CreateParams CreateParams
         {
@@ -248,17 +385,19 @@ namespace AutoShortcut
         public void ShowPopup(bool rememberWindow)
         {
             if (!Visible && rememberWindow) _previousWindow = GetForegroundWindow();
+            UpdateLayout();   // the monitor under the mouse may be a different size
             PlaceBottomRight();
             Show();
             Activate();
-            if (rememberWindow) _list.AutoScrollPosition = Point.Empty;
+            if (rememberWindow) _list.ScrollToTop();
         }
 
         public void HidePopup()
         {
             if (!Visible) return;
-            _rowMenu.Close();
+            _menu.Close();
             Hide();
+            CloseSearch();
             _hiddenAt = DateTime.Now;
         }
 
@@ -273,13 +412,9 @@ namespace AutoShortcut
         protected override void OnDeactivate(EventArgs e)
         {
             base.OnDeactivate(e);
+            // The right-click menu takes the focus for a moment: that isn't leaving.
+            if (_menu.Visible) return;
             HidePopup();
-        }
-
-        protected override void OnKeyDown(KeyEventArgs e)
-        {
-            base.OnKeyDown(e);
-            if (e.KeyCode == Keys.Escape) HidePopup();
         }
 
         // Closing the window (Alt+F4) only hides it: the app keeps running in the tray.
@@ -298,7 +433,7 @@ namespace AutoShortcut
             if (disposing)
             {
                 _tips.Dispose();
-                _rowMenu.Dispose();
+                _menu.Dispose();
             }
             base.Dispose(disposing);
         }

@@ -45,7 +45,8 @@ namespace AutoShortcut
             _tray.Visible = true;
 
             _hotkey.Pressed += delegate { TogglePopup(); };
-            _popup.ShortcutInvoked += OnShortcutInvoked;
+            _popup.EntryInvoked += OnEntryInvoked;
+            _popup.FavoriteToggled += ToggleFavorite;
             _popup.AddRequested += delegate { EditShortcut(-1); };
             _popup.EditRequested += EditShortcut;
             _popup.DeleteRequested += DeleteShortcut;
@@ -69,12 +70,40 @@ namespace AutoShortcut
             _popup.ShowPopup(true);
         }
 
-        private void OnShortcutInvoked(Shortcut shortcut)
+        private void OnEntryInvoked(Entry entry)
         {
+            if (!entry.Runnable) return;
             IntPtr target = _popup.PreviousWindow;
             _popup.HidePopup();
-            string error = ActionRunner.Execute(shortcut, target);
-            if (error != null) Notify(error, ToolTipIcon.Error);
+            string error = ActionRunner.Execute(entry.Shortcut, target);
+            if (error != null)
+            {
+                Notify(error, ToolTipIcon.Error);
+                return;
+            }
+            // Remember it in Recent. Never for a file with an error: that would mean
+            // asking before overwriting it on every click.
+            if (_loadError != null) return;
+            _config.AddRecent(entry.Ref);
+            SaveConfig();
+        }
+
+        // The pop-up stays open: the star just changes.
+        private void ToggleFavorite(Entry entry)
+        {
+            if (_loadError == null)
+            {
+                _config.ToggleFavorite(entry.Ref);
+                SaveConfig();
+                return;
+            }
+            // The file has an error: ask first (in a dialog, with the pop-up out of the way).
+            RunDialog(delegate
+            {
+                if (!ConfirmOverwriteBrokenFile()) return;
+                _config.ToggleFavorite(entry.Ref);
+                SaveConfig();
+            });
         }
 
         // ---- Editing the list ----
@@ -107,9 +136,18 @@ namespace AutoShortcut
                 {
                     if (form.ShowDialog() != DialogResult.OK) return;
                     if (!ConfirmOverwriteBrokenFile()) return;
-                    if (isNew) _config.Shortcuts.Add(form.Result);
-                    else _config.Shortcuts[index] = form.Result;
+                    if (isNew)
+                    {
+                        _config.Shortcuts.Add(form.Result);
+                    }
+                    else
+                    {
+                        string oldName = _config.Shortcuts[index].Name;
+                        _config.Shortcuts[index] = form.Result;
+                        _config.RenameCustom(oldName, form.Result.Name);
+                    }
                     SaveConfig();
+                    if (isNew) _popup.SelectTab(ViewTab.Custom);   // show where it went
                 }
             });
         }
@@ -123,6 +161,7 @@ namespace AutoShortcut
                 if (!Ask("Delete the shortcut \"" + name + "\"?", MessageBoxIcon.Question)) return;
                 if (!ConfirmOverwriteBrokenFile()) return;
                 _config.Shortcuts.RemoveAt(index);
+                _config.RemoveCustom(name);
                 SaveConfig();
             });
         }
@@ -229,7 +268,9 @@ namespace AutoShortcut
         {
             try
             {
-                _config.Save();
+                Config c = _config;
+                c.Prune(delegate(string r) { return Library.Find(c, r) != null; });
+                c.Save();
                 _loadError = null;
             }
             catch (Exception ex)
@@ -269,7 +310,7 @@ namespace AutoShortcut
             }
 
             _tray.Text = Truncate(AppName + " (" + label + ")", 63);   // Windows limit
-            _popup.SetShortcuts(_config.Shortcuts, label);
+            _popup.SetData(_config, label);
         }
 
         private void EditConfigFile()
