@@ -148,7 +148,7 @@
         # 4. Check that it compiles before creating shortcuts
         Step 'Checking that the code compiles'
         $check = "`$f = Get-ChildItem '$AppDir\src' -Filter *.cs | ForEach-Object { `$_.FullName }; " +
-                 "Add-Type -Path `$f -ReferencedAssemblies System.Windows.Forms, System.Drawing, System.Web.Extensions -WarningAction SilentlyContinue"
+                 "Add-Type -Path `$f -ReferencedAssemblies System.Windows.Forms, System.Drawing, System.Web.Extensions, Accessibility -WarningAction SilentlyContinue"
         # With 'Stop', the first error line from the child process would abort here without showing the rest.
         $ErrorActionPreference = 'Continue'
         $output = & $PsExe -NoProfile -ExecutionPolicy Bypass -Command $check 2>&1

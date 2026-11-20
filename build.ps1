@@ -33,7 +33,8 @@ $cscArgs = @(
     '/r:System.dll',
     '/r:System.Drawing.dll',
     '/r:System.Windows.Forms.dll',
-    '/r:System.Web.Extensions.dll'   # JavaScriptSerializer to read the JSON
+    '/r:System.Web.Extensions.dll',  # JavaScriptSerializer to read the JSON
+    '/r:Accessibility.dll'           # screen reader support for the shortcut list
 ) + $sources
 
 & $csc @cscArgs

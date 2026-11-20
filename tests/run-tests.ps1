@@ -16,7 +16,7 @@ $files = @(Get-ChildItem (Join-Path $root 'src') -Filter *.cs) + @(Get-ChildItem
     ForEach-Object { $_.FullName }
 
 try {
-    Add-Type -Path $files -ReferencedAssemblies System.Windows.Forms, System.Drawing, System.Web.Extensions -WarningAction SilentlyContinue
+    Add-Type -Path $files -ReferencedAssemblies System.Windows.Forms, System.Drawing, System.Web.Extensions, Accessibility -WarningAction SilentlyContinue
 }
 catch {
     Write-Host "FAIL compile: $($_.Exception.Message)"

@@ -36,7 +36,7 @@ namespace AutoShortcut
         private bool _hoverStar;
         private int _pressed = -1;
 
-        public Predicate<Entry> IsFavorite;
+        public Predicate<Entry> IsFavorite { get; set; }
 
         public event Action<Entry> EntryClicked;
         public event Action<Entry> StarClicked;

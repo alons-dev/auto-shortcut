@@ -17,7 +17,7 @@ $src = Join-Path $PSScriptRoot 'src'
 $files = Get-ChildItem $src -Filter *.cs | ForEach-Object { $_.FullName }
 
 # The classes are "internal": Add-Type warns that they aren't public; that's expected.
-Add-Type -Path $files -ReferencedAssemblies System.Windows.Forms, System.Drawing, System.Web.Extensions -WarningAction SilentlyContinue
+Add-Type -Path $files -ReferencedAssemblies System.Windows.Forms, System.Drawing, System.Web.Extensions, Accessibility -WarningAction SilentlyContinue
 
 $program = [AppDomain]::CurrentDomain.GetAssemblies() |
     ForEach-Object { $_.GetType('AutoShortcut.Program', $false) } |
