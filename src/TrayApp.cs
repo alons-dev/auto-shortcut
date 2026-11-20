@@ -22,6 +22,7 @@ namespace AutoShortcut
         private DateTime _configStamp;        // file timestamp when it was read
         private string _registeredHotkey;     // the hotkey currently registered
         private bool _inDialog;               // an editing window is open
+        private readonly WarnOnce _hotkeyWarning = new WarnOnce();
 
         public TrayApp()
         {
@@ -290,7 +291,8 @@ namespace AutoShortcut
                 _hotkey.Unregister();
                 _registeredHotkey = null;
                 label = "Invalid shortcut";
-                Notify("The shortcut \"" + _config.Hotkey + "\" is not valid. Change it in Settings.", ToolTipIcon.Warning);
+                if (_hotkeyWarning.ShouldWarn(label + _config.Hotkey))
+                    Notify("The shortcut \"" + _config.Hotkey + "\" is not valid. Change it in Settings.", ToolTipIcon.Warning);
             }
             else if (combo.ToString() == _registeredHotkey)
             {
@@ -300,13 +302,16 @@ namespace AutoShortcut
             {
                 _registeredHotkey = combo.ToString();
                 label = string.Join(" + ", combo.DisplayParts());
+                _hotkeyWarning.Clear();
             }
             else
             {
                 _registeredHotkey = null;
                 label = combo + " in use";
-                Notify(combo + " is already used by another app. Pick another one in Settings " +
-                       "(gear button in the panel). Meanwhile, open it by clicking here.", ToolTipIcon.Warning);
+                // Saving (e.g. to remember a recent shortcut) comes back here: say it once.
+                if (_hotkeyWarning.ShouldWarn(label))
+                    Notify(combo + " is already used by another app. Pick another one in Settings " +
+                           "(gear button in the panel). Meanwhile, open it by clicking here.", ToolTipIcon.Warning);
             }
 
             _tray.Text = Truncate(AppName + " (" + label + ")", 63);   // Windows limit

@@ -124,7 +124,14 @@ namespace AutoShortcut
                 return fresh;
             }
             Config c = Parse(File.ReadAllText(FilePath, Encoding.UTF8));
-            if (c.Migrated) c.Save();
+            if (c.Migrated)
+            {
+                // Best effort: if the file can't be written (read-only, locked by a
+                // sync app), keep the list and the new hotkey in memory anyway.
+                try { c.Save(); }
+                catch (IOException) { }
+                catch (UnauthorizedAccessException) { }
+            }
             return c;
         }
 

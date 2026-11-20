@@ -30,6 +30,7 @@
     $PsExe    = Join-Path $env:WINDIR 'System32\WindowsPowerShell\v1.0\powershell.exe'
     $Conhost  = Join-Path $env:WINDIR 'System32\conhost.exe'
     $RegKey   = 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Uninstall\AutoShortcut'
+    $IconFile = Join-Path $AppDir "icon-$Version.ico"
     $LaunchArgs = "--headless `"$PsExe`" -NoProfile -ExecutionPolicy Bypass -File `"$AppDir\run.ps1`""
 
     function Step([string]$text) { Write-Host "  - $text" }
@@ -83,7 +84,7 @@
         $lnk.TargetPath = $Conhost
         $lnk.Arguments = $LaunchArgs
         $lnk.WorkingDirectory = $AppDir
-        $lnk.IconLocation = "$AppDir\icon.ico,0"
+        $lnk.IconLocation = "$IconFile,0"
         $lnk.Description = 'Keyboard shortcuts panel'
         $lnk.Save()
     }
@@ -145,7 +146,10 @@
 
         # 5. Icon and shortcuts
         Step 'Creating shortcuts (Start menu and Windows Startup)'
-        New-AppIcon "$AppDir\assets\icon.png" "$AppDir\icon.ico"
+        # A new file name per version: Explorer caches icons by path, so reusing
+        # icon.ico would keep showing the old icon after an update.
+        Get-ChildItem $AppDir -Filter 'icon*.ico' | Remove-Item -Force -ErrorAction SilentlyContinue
+        New-AppIcon "$AppDir\assets\icon.png" $IconFile
         # 'Create': if the folder doesn't exist (it happens with Startup for some users) it's
         # created; without this option .NET returns an empty path.
         $startMenu = [Environment]::GetFolderPath('Programs', 'Create')
@@ -160,7 +164,7 @@
         New-Item -Path $RegKey -Force | Out-Null
         $values = @{
             DisplayName = 'AutoShortcut'; DisplayVersion = $Version; Publisher = 'alons-dev'
-            DisplayIcon = "$AppDir\icon.ico"; InstallLocation = $AppDir
+            DisplayIcon = $IconFile; InstallLocation = $AppDir
             UninstallString = $uninstall; QuietUninstallString = "$uninstall -Quiet"
             URLInfoAbout = "https://github.com/$Repo"
         }

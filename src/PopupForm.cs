@@ -142,6 +142,18 @@ namespace AutoShortcut
 
             _menu = new ContextMenuStrip();
             MenuRenderer.Apply(_menu, _theme);
+            // While the menu is open the pop-up ignores losing focus (see OnDeactivate).
+            // If the menu then closes because the user went to another window, the
+            // pop-up won't get another chance: hide it here.
+            _menu.Closed += delegate(object sender, ToolStripDropDownClosedEventArgs e)
+            {
+                if (e.CloseReason != ToolStripDropDownCloseReason.AppFocusChange &&
+                    e.CloseReason != ToolStripDropDownCloseReason.AppClicked) return;
+                BeginInvoke((MethodInvoker)delegate
+                {
+                    if (Form.ActiveForm != this) HidePopup();
+                });
+            };
 
             Controls.Add(_title);
             Controls.Add(_hotkeyLabel);

@@ -31,6 +31,8 @@ namespace AutoShortcut.Tests
             Test("OddQueries", OddQueries);
             Test("PruneDropsUnknownRefs", PruneDropsUnknownRefs);
             Test("AppIconFound", AppIconFound);
+            Test("MigrationSurvivesReadOnlyFile", MigrationSurvivesReadOnlyFile);
+            Test("WarnOnceUntilChanged", WarnOnceUntilChanged);
 
             Console.WriteLine(_passed + " passed, " + _failed + " failed");
             return _failed;
@@ -400,6 +402,42 @@ namespace AutoShortcut.Tests
             {
                 Environment.SetEnvironmentVariable("AUTOSHORTCUT_HOME", saved);
             }
+        }
+
+        // A v0.1 file that can't be written (read-only, locked) must still load:
+        // the migration is only saved when possible.
+        private static void MigrationSurvivesReadOnlyFile()
+        {
+            string savedAppData = Environment.GetEnvironmentVariable("APPDATA");
+            string dir = System.IO.Path.Combine(System.IO.Path.GetTempPath(), "autoshortcut-test-" + Guid.NewGuid().ToString("N"));
+            try
+            {
+                Environment.SetEnvironmentVariable("APPDATA", dir);
+                System.IO.Directory.CreateDirectory(Config.Folder);
+                System.IO.File.WriteAllText(Config.FilePath,
+                    "{\"hotkey\":\"Win+Shift+A\",\"shortcuts\":[{\"name\":\"Mine\",\"keys\":\"Ctrl+K\"}]}");
+                System.IO.File.SetAttributes(Config.FilePath, System.IO.FileAttributes.ReadOnly);
+                Config c = Config.Load();
+                Equal("customs kept", "Mine", Names(c));
+                Equal("hotkey migrated in memory", "Win+Shift+Z", c.Hotkey);
+            }
+            finally
+            {
+                if (System.IO.File.Exists(System.IO.Path.Combine(dir, "AutoShortcut", "shortcuts.json")))
+                    System.IO.File.SetAttributes(System.IO.Path.Combine(dir, "AutoShortcut", "shortcuts.json"), System.IO.FileAttributes.Normal);
+                Environment.SetEnvironmentVariable("APPDATA", savedAppData);
+                try { System.IO.Directory.Delete(dir, true); } catch (System.IO.IOException) { }
+            }
+        }
+
+        private static void WarnOnceUntilChanged()
+        {
+            WarnOnce w = new WarnOnce();
+            Check("first time", w.ShouldWarn("Win+Shift+Z in use"), "should warn the first time");
+            Check("same again", !w.ShouldWarn("Win+Shift+Z in use"), "must not repeat the same warning");
+            Check("different", w.ShouldWarn("Invalid shortcut"), "a different problem warns");
+            w.Clear();   // the hotkey worked
+            Check("after clear", w.ShouldWarn("Invalid shortcut"), "warns again after it was fixed and broke again");
         }
 
         private static void BadRefListsIgnored()
