@@ -43,6 +43,7 @@ namespace AutoShortcut.Tests
             Test("WindowsOverrideView", WindowsOverrideView);
             Test("CustomHotkeyView", CustomHotkeyView);
             Test("HotkeyTriggers", HotkeyTriggers);
+            Test("PinnedRoundTrip", PinnedRoundTrip);
 
             Console.WriteLine(_passed + " passed, " + _failed + " failed");
             return _failed;
@@ -672,6 +673,18 @@ namespace AutoShortcut.Tests
             Equal("windows sends", "Ctrl+C", t[1].Shortcut.KeysText);
             Equal("message", "Ctrl+Alt+N for \"Notepad\" is already used by another app", t[0].InUseMessage());
             Equal("windows message", "Ctrl+Alt+C for \"Copy\" is already used by another app", t[1].InUseMessage());
+        }
+
+        private static void PinnedRoundTrip()
+        {
+            Check("off by default", !new Config().Pinned, "a new config is not pinned");
+            Check("not written when off", !Config.CreateDefault().ToJson().Contains("pinned"), "only written when on");
+            Config c = Config.CreateDefault();
+            c.Pinned = true;
+            string json = c.ToJson();
+            Check("written when on", json.Contains("\"pinned\": true"), "pinned should be saved");
+            Check("read back", Config.Parse(json).Pinned, "pinned should load");
+            Check("odd value ignored", !Config.Parse("{\"pinned\":\"yes\"}").Pinned, "only true pins it");
         }
 
         private static void BadRefListsIgnored()

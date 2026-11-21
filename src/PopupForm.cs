@@ -7,9 +7,10 @@ using System.Windows.Forms;
 namespace AutoShortcut
 {
     // The pop-up: borderless, always-on-top window in the bottom-right corner of the
-    // monitor where the mouse is. It hides when it loses focus or on Esc.
+    // monitor where the mouse is. It hides when it loses focus or on Esc; with the
+    // switch on ("Keep open") it stays while you use other windows.
     //
-    //   Shortcuts   Win + Shift + Z               [search] [+] [gear]
+    //   Shortcuts   Win + Shift + Z          [on/off] [search] [+] [gear]
     //   All  Recent  Favorites  Custom  Windows 11
     //   (All sections) (Text editing) (General) ...      <- Windows 11 tab only
     //   list (ShortcutList)
@@ -32,12 +33,18 @@ namespace AutoShortcut
         [DllImport("user32.dll")]
         private static extern IntPtr GetForegroundWindow();
 
+        [DllImport("user32.dll")]
+        private static extern uint GetWindowThreadProcessId(IntPtr hWnd, out uint processId);
+
+        private const int WM_ACTIVATE = 0x0006;
+
         private const int WS_EX_TOOLWINDOW = 0x80;   // keep it out of Alt+Tab and the taskbar
         private const int CS_DROPSHADOW = 0x20000;   // soft shadow, like menus
 
         private readonly Theme _theme;
         private readonly TextLabel _title;
         private readonly TextLabel _hotkeyLabel;
+        private readonly ToggleSwitch _pin;
         private readonly IconButton _searchButton;
         private readonly IconButton _addButton;
         private readonly IconButton _settingsButton;
@@ -56,6 +63,7 @@ namespace AutoShortcut
         private Entry _menuEntry;
         private DateTime _hiddenAt = DateTime.MinValue;
         private IntPtr _previousWindow;
+        private bool _settingData;        // SetData updates the switch: not a click
 
         public event Action<Entry> EntryInvoked;          // click on a runnable shortcut
         public event Action<Entry> FavoriteToggled;       // star or menu
@@ -65,6 +73,7 @@ namespace AutoShortcut
         public event Action<int> DeleteRequested;         // menu > Delete
         public event Action<int, int> MoveRequested;      // menu > Move (index, -1 up / +1 down)
         public event Action<Entry> WindowsEditRequested;  // menu > Edit hotkey (Windows shortcut)
+        public event Action<bool> PinChanged;             // "Keep open" switch
 
         public PopupForm()
         {
@@ -92,6 +101,15 @@ namespace AutoShortcut
 
             _hotkeyLabel = new TextLabel(_theme, true);
             _hotkeyLabel.Font = new Font("Segoe UI", 8.25F);
+
+            _pin = new ToggleSwitch("Keep open", _theme);
+            _pin.CheckedChanged += delegate
+            {
+                if (_settingData) return;
+                Action<bool> h = PinChanged;
+                if (h != null) h(_pin.Checked);
+            };
+            _tips.SetToolTip(_pin, "Keep open: stays visible when you use other windows");
 
             _searchButton = new IconButton(Ui.GlyphSearch, "Search", _theme);
             _searchButton.Click += delegate { OpenSearch(""); };
@@ -152,12 +170,13 @@ namespace AutoShortcut
                     e.CloseReason != ToolStripDropDownCloseReason.AppClicked) return;
                 BeginInvoke((MethodInvoker)delegate
                 {
-                    if (Form.ActiveForm != this) HidePopup();
+                    if (Form.ActiveForm != this && !Pinned) HidePopup();
                 });
             };
 
             Controls.Add(_title);
             Controls.Add(_hotkeyLabel);
+            Controls.Add(_pin);
             Controls.Add(_searchButton);
             Controls.Add(_addButton);
             Controls.Add(_settingsButton);
@@ -172,13 +191,19 @@ namespace AutoShortcut
             RefreshList(false);
         }
 
-        // The window that was in front before the pop-up opened: keys are sent there.
+        // The window that was in front before the pop-up opened (or, kept open, the
+        // last one you used): keys are sent there.
         public IntPtr PreviousWindow { get { return _previousWindow; } }
+
+        public bool Pinned { get { return _pin.Checked; } }
 
         // New config (after loading or saving): same tab, chip, search and scroll.
         public void SetData(Config config, string hotkeyText)
         {
             _config = config;
+            _settingData = true;
+            _pin.Checked = config.Pinned;
+            _settingData = false;
             _hotkeyLabel.Text = hotkeyText ?? "";
             UpdateLayout();
             RefreshList(true);
@@ -208,10 +233,11 @@ namespace AutoShortcut
             _settingsButton.Location = new Point(width - Ui.S(8) - _settingsButton.Width, Ui.S(8));
             _addButton.Location = new Point(_settingsButton.Left - Ui.S(2) - _addButton.Width, Ui.S(8));
             _searchButton.Location = new Point(_addButton.Left - Ui.S(2) - _searchButton.Width, Ui.S(8));
+            _pin.Location = new Point(_searchButton.Left - Ui.S(4) - _pin.Width, Ui.S(8));
             _closeSearch.Location = new Point(width - Ui.S(8) - _closeSearch.Width, Ui.S(8));
 
             _title.Visible = _hotkeyLabel.Visible = !_searching;
-            _searchButton.Visible = _addButton.Visible = _settingsButton.Visible = !_searching;
+            _searchButton.Visible = _addButton.Visible = _settingsButton.Visible = _pin.Visible = !_searching;
             _searchBox.Visible = _closeSearch.Visible = _searching;
             _tabs.Dimmed = _searching;
 
@@ -446,8 +472,26 @@ namespace AutoShortcut
         {
             base.OnDeactivate(e);
             // The right-click menu takes the focus for a moment: that isn't leaving.
-            if (_menu.Visible) return;
+            if (_menu.Visible || Pinned) return;
             HidePopup();
+        }
+
+        protected override void WndProc(ref Message m)
+        {
+            // Kept open, you may use other windows and come back: when it's activated,
+            // the window that had the focus (lParam) is where keys should go now.
+            // Our own windows (dialogs, menus) don't count.
+            if (m.Msg == WM_ACTIVATE && (m.WParam.ToInt64() & 0xFFFF) != 0 && Pinned && IsOtherApp(m.LParam))
+                _previousWindow = m.LParam;
+            base.WndProc(ref m);
+        }
+
+        private static bool IsOtherApp(IntPtr hwnd)
+        {
+            if (hwnd == IntPtr.Zero) return false;
+            uint pid;
+            GetWindowThreadProcessId(hwnd, out pid);
+            return pid != 0 && pid != (uint)System.Diagnostics.Process.GetCurrentProcess().Id;
         }
 
         // Closing the window (Alt+F4) only hides it: the app keeps running in the tray.

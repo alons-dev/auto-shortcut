@@ -55,6 +55,7 @@ namespace AutoShortcut
             _hotkey.Pressed += OnHotkey;
             _popup.EntryInvoked += OnEntryInvoked;
             _popup.WindowsEditRequested += EditWindowsHotkey;
+            _popup.PinChanged += SetPinned;
             _popup.FavoriteToggled += ToggleFavorite;
             _popup.AddRequested += delegate { EditShortcut(-1); };
             _popup.EditRequested += EditShortcut;
@@ -98,17 +99,22 @@ namespace AutoShortcut
             Trigger t;
             if (_inDialog || !_triggers.TryGetValue(id, out t)) return;
             PauseOwnHotkey(t.Shortcut);
-            if (_popup.Visible)
+            // If the pop-up has the focus, act on the window that was in front before it.
+            // Kept open, it stays; otherwise it goes away as with a click.
+            IntPtr target = _popup.Visible && Form.ActiveForm == _popup ? _popup.PreviousWindow : IntPtr.Zero;
+            if (_popup.Visible && !_popup.Pinned)
             {
-                // The pop-up has the focus: act on the window that was in front before.
-                IntPtr target = _popup.PreviousWindow;
+                target = _popup.PreviousWindow;
                 _popup.HidePopup();
-                Ran(t.Ref, ActionRunner.Execute(t.Shortcut, target));
             }
-            else
-            {
-                Ran(t.Ref, ActionRunner.ExecuteFromHotkey(t.Shortcut));
-            }
+            Ran(t.Ref, ActionRunner.ExecuteFromHotkey(t.Shortcut, target));
+        }
+
+        // "Keep open" switch. With a broken file it only lasts until the app restarts.
+        private void SetPinned(bool pinned)
+        {
+            _config.Pinned = pinned;
+            if (_loadError == null) SaveConfig();
         }
 
         // Pressing Ctrl+C when a shortcut of yours took Ctrl+C would run that shortcut.

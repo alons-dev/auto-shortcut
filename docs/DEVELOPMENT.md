@@ -24,7 +24,7 @@ The `.ps1` files are ASCII-only on purpose: Windows PowerShell 5.1 reads scripts
 - **Global hotkeys**: `RegisterHotKey` (`user32.dll`), one id for the combination that opens the pop-up, one for each of your shortcuts with a hotkey and one for each Windows shortcut you moved. Windows sends `WM_HOTKEY` even while the app is in the background. Reminders (another app's combination kept with a name) are never registered.
 - **Who has a combination**: [`HotkeyRules.cs`](../src/HotkeyRules.cs) checks, in this order, the combination that opens AutoShortcut, your shortcuts (hotkeys and reminders) and the Windows catalog (each shortcut on its current combination plus its other ones). Only then does the app try `RegisterHotKey`; if Windows refuses, another app has it. Saving a taken combination is blocked with that answer.
 - **Moved Windows shortcuts**: stored by combination (`"Ctrl+C": "Ctrl+Alt+C"`), so every catalog entry on <kbd>Ctrl</kbd>+<kbd>C</kbd> moves together. The new combination is registered and presses the default; the default isn't captured, so it keeps working until one of your shortcuts takes it. Restoring clears the moves and takes the hotkey off your shortcuts that were on a Windows default.
-- **Pop-up**: a borderless form above the taskbar, with Windows 11 rounded corners from `DwmSetWindowAttribute`.
+- **Pop-up**: a borderless form above the taskbar, with Windows 11 rounded corners from `DwmSetWindowAttribute`. It hides when it loses the focus, unless "Keep open" is on; then, each time it's activated, the window that had the focus (from `WM_ACTIVATE`) becomes where clicked shortcuts send their keys.
 - **Acrylic**: on Windows 11 with transparency effects on (and no high contrast) the pop-up has a live blur behind it, through the window's accent policy (`SetWindowCompositionAttribute`), plus a 50 % tint of the theme color. The documented backdrop API draws flat gray when the window is opened by the global hotkey, so it isn't used. On acrylic every pixel's alpha counts, and classic GDI drawing leaves it at 0, so the pop-up's controls paint through [`Glass.cs`](../src/Glass.cs): a 32-bit off-screen buffer drawn with GDI+, copied with its alpha; the search `TextBox` is repainted fully opaque. The list scrolls by itself (thin Windows 11-style bar) because the native scrollbar can't draw there. Elsewhere (Windows 10 included) the same code paints opaque with ClearType text, as before. Set `AUTOSHORTCUT_NO_ACRYLIC=1` to force the opaque look.
 - **Built-in catalog**: [`WindowsShortcuts.cs`](../src/WindowsShortcuts.cs) has the Windows 11 shortcuts from Microsoft's [Keyboard shortcuts in Windows](https://support.microsoft.com/en-us/accessibility/windows/keyboard-shortcuts-in-windows) page (Windows 11 tab, without the Copilot section), in our own words. Entries that can't be pressed by an app (mouse, number ranges, <kbd>Ctrl</kbd>+<kbd>Alt</kbd>+<kbd>Del</kbd>, <kbd>Win</kbd>+<kbd>L</kbd>…) are reference only. Ids are saved in favorites and recents, so they never change.
 - **Views and search**: [`Library.cs`](../src/Library.cs) turns the config and the catalog into what each tab shows, and matches searches (every word must appear in the name, section or keys; `windows`/`control`/`delete`/`escape` also match `win`/`ctrl`/`del`/`esc`).
@@ -39,6 +39,7 @@ The `.ps1` files are ASCII-only on purpose: Windows PowerShell 5.1 reads scripts
 | `PopupForm.cs` | The pop-up: header, search, tabs, chips, list and right-click menu |
 | `ShortcutList.cs` | Owner-drawn list with headers, keycaps and stars |
 | `TabStrip.cs` / `ChipBar.cs` | Underlined tabs / scrolling section chips |
+| `ToggleSwitch.cs` | Windows 11-style on/off switch ("Keep open") |
 | `WindowsShortcuts.cs` | The built-in Windows 11 catalog |
 | `Library.cs` | Entries, views per tab, search |
 | `Config.cs` / `Shortcut.cs` | Read and save `shortcuts.json` (your shortcuts, moved Windows shortcuts, favorites, recents) |
@@ -69,6 +70,7 @@ Saved in `%APPDATA%\AutoShortcut\shortcuts.json`. It holds only what's yours; th
     { "name": "Reopen closed tab", "keys": "Ctrl+Shift+T" }
   ],
   "windowsHotkeys": { "Ctrl+C": "Ctrl+Alt+C" },
+  "pinned": true,
   "favorites": ["win:winkey.clipboard-history", "custom:Notepad"],
   "recent": ["win:text.copy"]
 }
@@ -78,6 +80,7 @@ Saved in `%APPDATA%\AutoShortcut\shortcuts.json`. It holds only what's yours; th
 - `run`: program, file, folder or URL (variables like `%USERPROFILE%` work). `args`: optional, with `run`. `hotkey`: optional, with `run`; opens it from anywhere. Without it, it opens on click.
 - `keys`: a reminder of another app's combination. Clicking it presses the keys in the window you had in front; the app doesn't listen to them.
 - `windowsHotkeys`: Windows shortcuts moved to other keys, default › new. Only written when there is one.
+- `pinned`: the "Keep open" switch; the pop-up doesn't hide when another window takes the focus. Only written when on.
 - `favorites` / `recent`: `win:<catalog id>` or `custom:<name>`. Unknown entries are dropped on save.
 - If the file has an error, the app warns and keeps using the last good list; it never overwrites it without asking.
 

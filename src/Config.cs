@@ -45,6 +45,8 @@ namespace AutoShortcut
         public List<string> Recent = new List<string>();
         // Windows default combination -> the one the user picked (both normalized).
         public Dictionary<string, string> WindowsHotkeys = new Dictionary<string, string>();
+        // The pop-up stays open when another window takes the focus.
+        public bool Pinned;
 
         // Set by Parse when the hotkey was moved off the old default: Load saves it.
         public bool Migrated;
@@ -203,6 +205,8 @@ namespace AutoShortcut
             c.Favorites = GetStrings(obj, "favorites");
             c.Recent = GetStrings(obj, "recent");
             c.WindowsHotkeys = GetCombos(obj, "windowsHotkeys");
+            object pinned;
+            c.Pinned = obj.TryGetValue("pinned", out pinned) && pinned is bool && (bool)pinned;
 
             object list;
             if (obj.TryGetValue("shortcuts", out list) && list != null)
@@ -311,6 +315,7 @@ namespace AutoShortcut
                     pairs.Add(Quote(pair.Key) + ": " + Quote(pair.Value));
                 sb.Append("  \"windowsHotkeys\": { ").Append(string.Join(", ", pairs)).Append(" },\r\n");
             }
+            if (Pinned) sb.Append("  \"pinned\": true,\r\n");
             sb.Append("  \"favorites\": ").Append(QuoteList(Favorites)).Append(",\r\n");
             sb.Append("  \"recent\": ").Append(QuoteList(Recent)).Append("\r\n");
             sb.Append("}\r\n");

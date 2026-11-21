@@ -51,6 +51,7 @@ Works on Windows 10 and 11.
 | Change the keys of a Windows shortcut | Right-click it › **Edit hotkey** |
 | Put the Windows shortcuts back | ⚙ button › **Restore Windows shortcuts** |
 | Change the key that opens it | ⚙ button |
+| Keep it open while you use other windows | Turn on the switch next to 🔍 (clicking a shortcut, <kbd>Esc</kbd> or its key still close it) |
 | Close it | <kbd>Esc</kbd>, or click anywhere else |
 
 A few shortcuts appear dimmed: they need the mouse, a number, or Windows doesn't let apps press them (like <kbd>Ctrl</kbd> + <kbd>Alt</kbd> + <kbd>Del</kbd>). They're there so you can look them up.

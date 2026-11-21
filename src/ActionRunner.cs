@@ -21,12 +21,18 @@ namespace AutoShortcut
             return shortcut.IsLaunch ? Launch(shortcut) : PressKeys(shortcut, previousWindow);
         }
 
-        // From a hotkey: keys go to the window in front, which still has the focus.
-        public static string ExecuteFromHotkey(Shortcut shortcut)
+        // From a hotkey: keys go to the window in front, which still has the focus,
+        // or to target when the pop-up has it. The hotkey's modifiers may still be held.
+        public static string ExecuteFromHotkey(Shortcut shortcut, IntPtr target)
         {
             if (shortcut.IsLaunch) return Launch(shortcut);
             KeyCombo combo;
             if (!KeyCombo.TryParse(shortcut.KeysText, out combo)) return CantParse(shortcut);
+            if (target != IntPtr.Zero && IsWindow(target))
+            {
+                SetForegroundWindow(target);
+                Thread.Sleep(80);
+            }
             return KeySender.Send(combo, true) ? null : Blocked(combo);
         }
 
