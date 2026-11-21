@@ -46,7 +46,7 @@ Works on Windows 10 and 11.
 | Find a shortcut | Start typing, or click 🔍 |
 | Browse by section | **Windows 11** tab, then pick a section |
 | Add to favorites | Click the ☆ that appears on a shortcut, or right-click it |
-| Create your own | **+** button |
+| Create your own | **+** button (see below) |
 | Edit, move or delete yours | Right-click it |
 | Change the keys of a Windows shortcut | Right-click it › **Edit hotkey** |
 | Put the Windows shortcuts back | ⚙ button › **Restore Windows shortcuts** |
@@ -54,6 +54,20 @@ Works on Windows 10 and 11.
 | Close it | <kbd>Esc</kbd>, or click anywhere else |
 
 A few shortcuts appear dimmed: they need the mouse, a number, or Windows doesn't let apps press them (like <kbd>Ctrl</kbd> + <kbd>Alt</kbd> + <kbd>Del</kbd>). They're there so you can look them up.
+
+## Your own shortcuts
+
+Press **+**, give it a name and choose what it does:
+
+| Mode | What happens |
+|---|---|
+| **Hotkey** › Open… | Your combination (say <kbd>Ctrl</kbd> + <kbd>Alt</kbd> + <kbd>N</kbd>) opens a program, file, folder or website from anywhere. A click works too. |
+| **Hotkey** › Press this hotkey | A reminder: another app's combination (say <kbd>Ctrl</kbd> + <kbd>Shift</kbd> + <kbd>T</kbd> to reopen a browser tab) with a name you can search for. A click presses it. |
+| **Open on click** | No combination, just a click. |
+
+If the combination is already taken, AutoShortcut says by what: itself, another of your shortcuts, a Windows shortcut or another app. To free it, edit whatever has it.
+
+Windows shortcuts can be moved too: right-click › **Edit hotkey**. Move Copy to <kbd>Ctrl</kbd> + <kbd>Alt</kbd> + <kbd>C</kbd> and pressing it copies; <kbd>Ctrl</kbd> + <kbd>C</kbd> keeps copying until you give it to one of your shortcuts. **⚙ › Restore Windows shortcuts** puts them all back; your shortcuts that had one of those keys keep opening on click.
 
 ## Uninstall
 
@@ -79,6 +93,7 @@ Remove-Item "$env:APPDATA\AutoShortcut" -Recurse -Force
 
 - **Another app uses Win + Shift + Z?** AutoShortcut tells you. Pick another combination with the ⚙ button.
 - **Windows running as administrator** don't accept keys from normal apps, so shortcuts won't reach them.
+- **Some combinations can't be taken**, like <kbd>Win</kbd> + <kbd>E</kbd> or <kbd>Win</kbd> + <kbd>L</kbd>: Windows keeps them for itself.
 
 ---
 
