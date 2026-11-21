@@ -12,12 +12,18 @@ namespace AutoShortcut
     //   {
     //     "hotkey": "Win+Shift+Z",
     //     "shortcuts": [
-    //       { "name": "Notepad", "run": "notepad.exe" },
+    //       { "name": "Notepad", "run": "notepad.exe", "hotkey": "Ctrl+Alt+N" },
+    //       { "name": "GitHub", "run": "https://github.com" },
     //       { "name": "Reopen closed tab", "keys": "Ctrl+Shift+T" }
     //     ],
+    //     "windowsHotkeys": { "Ctrl+C": "Ctrl+Alt+C" },
     //     "favorites": ["win:winkey.clipboard-history", "custom:Notepad"],
     //     "recent": ["win:text.copy"]
     //   }
+    //
+    // "hotkey" opens a shortcut from anywhere; "keys" is a reminder (see Shortcut).
+    // "windowsHotkeys" moves a Windows shortcut to another combination: pressing
+    // Ctrl+Alt+C presses Ctrl+C. Only written when there is something in it.
     //
     // Favorites and recents are "refs": "win:<id>" for a built-in Windows shortcut
     // (see WindowsShortcuts.cs) and "custom:<name>" for one of the user's shortcuts.
@@ -37,6 +43,8 @@ namespace AutoShortcut
         public List<Shortcut> Shortcuts = new List<Shortcut>();
         public List<string> Favorites = new List<string>();
         public List<string> Recent = new List<string>();
+        // Windows default combination -> the one the user picked (both normalized).
+        public Dictionary<string, string> WindowsHotkeys = new Dictionary<string, string>();
 
         // Set by Parse when the hotkey was moved off the old default: Load saves it.
         public bool Migrated;
@@ -194,6 +202,7 @@ namespace AutoShortcut
             }
             c.Favorites = GetStrings(obj, "favorites");
             c.Recent = GetStrings(obj, "recent");
+            c.WindowsHotkeys = GetCombos(obj, "windowsHotkeys");
 
             object list;
             if (obj.TryGetValue("shortcuts", out list) && list != null)
@@ -210,6 +219,7 @@ namespace AutoShortcut
                     s.KeysText = GetString(entry, "keys");
                     s.Run = GetString(entry, "run");
                     s.Args = GetString(entry, "args");
+                    if (s.IsLaunch) s.Hotkey = Normalize(GetString(entry, "hotkey"));
                     if (string.IsNullOrEmpty(s.Name)) s.Name = s.IsLaunch ? s.Run : s.KeysText;
                     if (string.IsNullOrEmpty(s.Name)) continue;   // empty entry
                     c.Shortcuts.Add(s);
@@ -224,6 +234,31 @@ namespace AutoShortcut
             if (!obj.TryGetValue(key, out value) || value == null) return null;
             string s = Convert.ToString(value, System.Globalization.CultureInfo.InvariantCulture).Trim();
             return s.Length == 0 ? null : s;
+        }
+
+        // "ctrl+alt+n" -> "Ctrl+Alt+N". Text that isn't a combination stays as it
+        // is: the app then says it isn't valid instead of losing it.
+        private static string Normalize(string text)
+        {
+            KeyCombo combo;
+            return KeyCombo.TryParse(text, out combo) ? combo.ToString() : text;
+        }
+
+        // { "combination": "combination" }, both valid. Anything else is ignored.
+        private static Dictionary<string, string> GetCombos(IDictionary<string, object> obj, string key)
+        {
+            Dictionary<string, string> result = new Dictionary<string, string>();
+            object value;
+            if (!obj.TryGetValue(key, out value)) return result;
+            IDictionary<string, object> map = value as IDictionary<string, object>;
+            if (map == null) return result;
+            foreach (KeyValuePair<string, object> pair in map)
+            {
+                KeyCombo from, to;
+                if (KeyCombo.TryParse(pair.Key, out from) && KeyCombo.TryParse(pair.Value as string, out to))
+                    result[from.ToString()] = to.ToString();
+            }
+            return result;
         }
 
         // A list of strings. Anything else (not a list, numbers, null) is ignored:
@@ -260,6 +295,7 @@ namespace AutoShortcut
                 {
                     sb.Append(", \"run\": ").Append(Quote(s.Run));
                     if (!string.IsNullOrEmpty(s.Args)) sb.Append(", \"args\": ").Append(Quote(s.Args));
+                    if (s.HasHotkey) sb.Append(", \"hotkey\": ").Append(Quote(s.Hotkey));
                 }
                 else
                 {
@@ -268,6 +304,13 @@ namespace AutoShortcut
                 sb.Append(" }");
             }
             sb.Append(Shortcuts.Count == 0 ? "],\r\n" : "\r\n  ],\r\n");
+            if (WindowsHotkeys.Count > 0)
+            {
+                List<string> pairs = new List<string>();
+                foreach (KeyValuePair<string, string> pair in WindowsHotkeys)
+                    pairs.Add(Quote(pair.Key) + ": " + Quote(pair.Value));
+                sb.Append("  \"windowsHotkeys\": { ").Append(string.Join(", ", pairs)).Append(" },\r\n");
+            }
             sb.Append("  \"favorites\": ").Append(QuoteList(Favorites)).Append(",\r\n");
             sb.Append("  \"recent\": ").Append(QuoteList(Recent)).Append("\r\n");
             sb.Append("}\r\n");

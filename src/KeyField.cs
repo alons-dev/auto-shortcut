@@ -11,7 +11,7 @@ namespace AutoShortcut
         private const int RecordTimeoutMs = 10000;
 
         private readonly Theme _theme;
-        private readonly bool _forHotkey;
+        private bool _forHotkey;
         private readonly TextBox _text;
         private readonly Button _record;
         private readonly Label _status;
@@ -80,6 +80,13 @@ namespace AutoShortcut
         {
             get { return _text.Text.Trim(); }
             set { _text.Text = value ?? ""; }
+        }
+
+        // Whether it must include Win, Ctrl or Alt (when the app will listen to it).
+        public bool RequireModifier
+        {
+            get { return _forHotkey; }
+            set { _forHotkey = value; ShowStatus(); }
         }
 
         public bool IsValid

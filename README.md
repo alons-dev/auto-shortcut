@@ -21,7 +21,8 @@
 - **Click to run**: no need to remember the keys, AutoShortcut presses them for you in the window you were using.
 - **Search**: just start typing ("screenshot", "desktop", "win v"…).
 - **Favorites and recent** shortcuts always at hand.
-- **Your own shortcuts**: press keys, or open a program, a folder or a website.
+- **Your own shortcuts**: open a program, a folder or a website with your own key combination (or just with a click), or keep another app's combination as a reminder.
+- **Move any Windows shortcut** to other keys, and put them all back with one button. AutoShortcut tells you when a combination is already taken, and by what.
 - Light and dark mode and the see-through look of Windows 11. Free, no ads, nothing to configure.
 
 ## Install
@@ -47,6 +48,8 @@ Works on Windows 10 and 11.
 | Add to favorites | Click the ☆ that appears on a shortcut, or right-click it |
 | Create your own | **+** button |
 | Edit, move or delete yours | Right-click it |
+| Change the keys of a Windows shortcut | Right-click it › **Edit hotkey** |
+| Put the Windows shortcuts back | ⚙ button › **Restore Windows shortcuts** |
 | Change the key that opens it | ⚙ button |
 | Close it | <kbd>Esc</kbd>, or click anywhere else |
 

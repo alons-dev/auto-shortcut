@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Diagnostics;
 using System.Drawing;
 using System.IO;
@@ -12,8 +13,14 @@ namespace AutoShortcut
     internal sealed class TrayApp : ApplicationContext
     {
         private const string AppName = "AutoShortcut";
+        private const int AppHotkeyId = 1;
+        private const int FirstTriggerId = 100;   // your shortcuts and moved Windows ones
+        private const string InUseByApp = "Already used by another app";
 
         private readonly HotkeyWindow _hotkey = new HotkeyWindow();
+        private readonly Dictionary<int, Trigger> _triggers = new Dictionary<int, Trigger>();
+        private string _triggerCombos;        // what is registered now, to skip re-registering
+        private readonly WarnOnce _triggerWarning = new WarnOnce();
         private readonly PopupForm _popup = new PopupForm();
         private readonly NotifyIcon _tray = new NotifyIcon();
 
@@ -45,8 +52,9 @@ namespace AutoShortcut
             };
             _tray.Visible = true;
 
-            _hotkey.Pressed += delegate { TogglePopup(); };
+            _hotkey.Pressed += OnHotkey;
             _popup.EntryInvoked += OnEntryInvoked;
+            _popup.WindowsEditRequested += EditWindowsHotkey;
             _popup.FavoriteToggled += ToggleFavorite;
             _popup.AddRequested += delegate { EditShortcut(-1); };
             _popup.EditRequested += EditShortcut;
@@ -76,7 +84,42 @@ namespace AutoShortcut
             if (!entry.Runnable) return;
             IntPtr target = _popup.PreviousWindow;
             _popup.HidePopup();
-            string error = ActionRunner.Execute(entry.Shortcut, target);
+            PauseOwnHotkey(entry.Shortcut);
+            Ran(entry.Ref, ActionRunner.Execute(entry.Shortcut, target));
+        }
+
+        private void OnHotkey(int id)
+        {
+            if (id == AppHotkeyId)
+            {
+                TogglePopup();
+                return;
+            }
+            Trigger t;
+            if (_inDialog || !_triggers.TryGetValue(id, out t)) return;
+            PauseOwnHotkey(t.Shortcut);
+            if (_popup.Visible)
+            {
+                // The pop-up has the focus: act on the window that was in front before.
+                IntPtr target = _popup.PreviousWindow;
+                _popup.HidePopup();
+                Ran(t.Ref, ActionRunner.Execute(t.Shortcut, target));
+            }
+            else
+            {
+                Ran(t.Ref, ActionRunner.ExecuteFromHotkey(t.Shortcut));
+            }
+        }
+
+        // Pressing Ctrl+C when a shortcut of yours took Ctrl+C would run that shortcut.
+        private void PauseOwnHotkey(Shortcut shortcut)
+        {
+            KeyCombo combo;
+            if (!shortcut.IsLaunch && KeyCombo.TryParse(shortcut.KeysText, out combo)) _hotkey.PauseFor(combo);
+        }
+
+        private void Ran(string reference, string error)
+        {
             if (error != null)
             {
                 Notify(error, ToolTipIcon.Error);
@@ -85,7 +128,7 @@ namespace AutoShortcut
             // Remember it in Recent. Never for a file with an error: that would mean
             // asking before overwriting it on every click.
             if (_loadError != null) return;
-            _config.AddRecent(entry.Ref);
+            _config.AddRecent(reference);
             SaveConfig();
         }
 
@@ -133,7 +176,9 @@ namespace AutoShortcut
             RunDialog(delegate
             {
                 bool isNew = index < 0 || index >= _config.Shortcuts.Count;
-                using (EditorForm form = new EditorForm(isNew ? null : _config.Shortcuts[index], Theme.Current()))
+                HotkeySelf self = HotkeyRules.Custom(isNew ? -1 : index);
+                Func<string, bool, string> check = delegate(string combo, bool listens) { return CheckHotkey(combo, self, listens); };
+                using (EditorForm form = new EditorForm(isNew ? null : _config.Shortcuts[index], Theme.Current(), check))
                 {
                     if (form.ShowDialog() != DialogResult.OK) return;
                     if (!ConfirmOverwriteBrokenFile()) return;
@@ -179,13 +224,68 @@ namespace AutoShortcut
             SaveConfig();
         }
 
+        // Right-click > Edit hotkey on a Windows shortcut.
+        private void EditWindowsHotkey(Entry entry)
+        {
+            if (entry.DefaultKeys == null) return;
+            RunDialog(delegate
+            {
+                string defaultKeys = entry.DefaultKeys;
+                HotkeySelf self = HotkeyRules.Windows(defaultKeys);
+                Func<string, string> check = delegate(string combo)
+                {
+                    // Back to its default: Windows handles it, nothing to register.
+                    return CheckHotkey(combo, self, HotkeyRules.Normalize(combo) != defaultKeys);
+                };
+                using (WindowsHotkeyForm form = new WindowsHotkeyForm(Theme.Current(), entry.Name, defaultKeys,
+                    HotkeyRules.Current(_config, defaultKeys), check))
+                {
+                    if (form.ShowDialog() != DialogResult.OK) return;
+                    if (!ConfirmOverwriteBrokenFile()) return;
+                    HotkeyRules.SetWindowsHotkey(_config, defaultKeys, form.Result);
+                    SaveConfig();
+                }
+            });
+        }
+
+        // null if the combination can be used, or why not. listens: the app will
+        // register it (not for reminders, nor for a Windows default).
+        private string CheckHotkey(string text, HotkeySelf self, bool listens)
+        {
+            string used = HotkeyRules.UsedBy(_config, text, self);
+            if (used != null || !listens) return used;
+            KeyCombo combo;
+            if (!KeyCombo.TryParse(text, out combo)) return null;
+            // Ours and not anyone else's in the list: it's the one being edited.
+            if (_hotkey.IsOurs(combo) || _hotkey.IsFree(combo)) return null;
+            return InUseByApp;
+        }
+
         private void OpenSettings()
         {
             RunDialog(delegate
             {
-                using (SettingsForm form = new SettingsForm(Theme.Current(), _config.Hotkey, TryChangeHotkey, EditConfigFile))
+                using (SettingsForm form = new SettingsForm(Theme.Current(), _config.Hotkey, TryChangeHotkey,
+                    EditConfigFile, RestoreWindowsShortcuts))
                     form.ShowDialog();
             });
+        }
+
+        // Settings > Restore Windows shortcuts. Returns what to show, or null if cancelled.
+        private string RestoreWindowsShortcuts()
+        {
+            if (_config.WindowsHotkeys.Count == 0) return "Windows shortcuts already use their default keys.";
+            Config preview = Config.Parse(_config.ToJson());
+            List<string> losing = HotkeyRules.RestoreWindows(preview);
+            string question = "Put every Windows shortcut back on its default keys?";
+            if (losing.Count > 0)
+                question += "\n\nThese shortcuts of yours use one of those keys and will lose their hotkey " +
+                            "(they will still open on click): " + string.Join(", ", losing) + ".";
+            if (!Ask(question, MessageBoxIcon.Question)) return null;
+            if (!ConfirmOverwriteBrokenFile()) return null;
+            HotkeyRules.RestoreWindows(_config);
+            SaveConfig();
+            return "Windows shortcuts restored.";
         }
 
         // Returns null if the new combination is registered and saved,
@@ -194,6 +294,8 @@ namespace AutoShortcut
         {
             KeyCombo combo;
             if (!KeyCombo.TryParse(text, out combo)) return "Check the key combination.";
+            string used = HotkeyRules.UsedBy(_config, text, HotkeyRules.App);
+            if (used != null) return used + ".";
             if (!ConfirmOverwriteBrokenFile()) return "Not saved.";
 
             string wanted = combo.ToString();
@@ -201,10 +303,10 @@ namespace AutoShortcut
             {
                 KeyCombo previous = null;
                 if (_registeredHotkey != null) KeyCombo.TryParse(_registeredHotkey, out previous);
-                if (!_hotkey.Register(combo))
+                if (!_hotkey.Register(AppHotkeyId, combo))
                 {
-                    if (previous != null) _hotkey.Register(previous);   // never end up with none
-                    return wanted + " is already used by another app. Try another one.";
+                    if (previous != null) _hotkey.Register(AppHotkeyId, previous);   // never end up with none
+                    return InUseByApp + ".";
                 }
                 _registeredHotkey = wanted;
             }
@@ -288,7 +390,7 @@ namespace AutoShortcut
             KeyCombo combo;
             if (!KeyCombo.TryParse(_config.Hotkey, out combo))
             {
-                _hotkey.Unregister();
+                _hotkey.Unregister(AppHotkeyId);
                 _registeredHotkey = null;
                 label = "Invalid shortcut";
                 if (_hotkeyWarning.ShouldWarn(label + _config.Hotkey))
@@ -298,7 +400,7 @@ namespace AutoShortcut
             {
                 label = string.Join(" + ", combo.DisplayParts());   // unchanged
             }
-            else if (_hotkey.Register(combo))
+            else if (_hotkey.Register(AppHotkeyId, combo))
             {
                 _registeredHotkey = combo.ToString();
                 label = string.Join(" + ", combo.DisplayParts());
@@ -315,7 +417,51 @@ namespace AutoShortcut
             }
 
             _tray.Text = Truncate(AppName + " (" + label + ")", 63);   // Windows limit
+            ApplyTriggers();
             _popup.SetData(_config, label);
+        }
+
+        // Registers the hotkeys of your shortcuts and of the Windows shortcuts you moved.
+        // Saving (e.g. a recent) comes back here: only re-register when they changed.
+        private void ApplyTriggers()
+        {
+            List<Trigger> wanted = HotkeyRules.Triggers(_config);
+            List<string> combos = new List<string>();
+            foreach (Trigger t in wanted) combos.Add(t.Combo + "=" + t.Ref);
+            string signature = string.Join("\n", combos);
+
+            if (signature == _triggerCombos)
+            {
+                // Same combinations: just point them at the current shortcuts.
+                int same = FirstTriggerId;
+                foreach (Trigger t in wanted)
+                {
+                    if (_triggers.ContainsKey(same)) _triggers[same] = t;
+                    same++;
+                }
+                return;
+            }
+
+            foreach (int old in _triggers.Keys) _hotkey.Unregister(old);
+            _triggers.Clear();
+            _triggerCombos = signature;
+
+            List<string> failed = new List<string>();
+            int id = FirstTriggerId;
+            foreach (Trigger t in wanted)
+            {
+                KeyCombo combo;
+                if (KeyCombo.TryParse(t.Combo, out combo) && _hotkey.Register(id, combo)) _triggers[id] = t;
+                else failed.Add(t.InUseMessage());
+                id++;
+            }
+            if (failed.Count == 0)
+            {
+                _triggerWarning.Clear();
+                return;
+            }
+            string message = string.Join("\n", failed) + ". Change it by editing the shortcut.";
+            if (_triggerWarning.ShouldWarn(message)) Notify(Truncate(message, 255), ToolTipIcon.Warning);
         }
 
         private void EditConfigFile()

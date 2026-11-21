@@ -21,11 +21,29 @@ namespace AutoShortcut
             return shortcut.IsLaunch ? Launch(shortcut) : PressKeys(shortcut, previousWindow);
         }
 
+        // From a hotkey: keys go to the window in front, which still has the focus.
+        public static string ExecuteFromHotkey(Shortcut shortcut)
+        {
+            if (shortcut.IsLaunch) return Launch(shortcut);
+            KeyCombo combo;
+            if (!KeyCombo.TryParse(shortcut.KeysText, out combo)) return CantParse(shortcut);
+            return KeySender.Send(combo, true) ? null : Blocked(combo);
+        }
+
+        private static string CantParse(Shortcut shortcut)
+        {
+            return "Can't understand the key combination \"" + shortcut.KeysText + "\" in \"" + shortcut.Name + "\".";
+        }
+
+        private static string Blocked(KeyCombo combo)
+        {
+            return "Windows blocked sending " + combo + " (this happens with windows running as administrator).";
+        }
+
         private static string PressKeys(Shortcut shortcut, IntPtr previousWindow)
         {
             KeyCombo combo;
-            if (!KeyCombo.TryParse(shortcut.KeysText, out combo))
-                return "Can't understand the key combination \"" + shortcut.KeysText + "\" in \"" + shortcut.Name + "\".";
+            if (!KeyCombo.TryParse(shortcut.KeysText, out combo)) return CantParse(shortcut);
 
             // Keys go to the window that has focus. When you click, the focus is ours,
             // so we hand it back to the previous window and give it a moment to
@@ -34,9 +52,7 @@ namespace AutoShortcut
                 SetForegroundWindow(previousWindow);
             Thread.Sleep(80);
 
-            if (!KeySender.Send(combo))
-                return "Windows blocked sending " + combo + " (this happens with windows running as administrator).";
-            return null;
+            return KeySender.Send(combo) ? null : Blocked(combo);
         }
 
         private static string Launch(Shortcut shortcut)

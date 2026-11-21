@@ -4,17 +4,19 @@ using System.Windows.Forms;
 
 namespace AutoShortcut
 {
-    // Settings: the key combination that opens AutoShortcut.
-    // On save it tries to register it; if another app has it, it says so and stays open.
+    // Settings: the key combination that opens AutoShortcut, and putting the Windows
+    // shortcuts back on their default keys.
+    // On save it tries to register it; if something has it, it says what and stays open.
     internal sealed class SettingsForm : ThemedDialog
     {
         private readonly KeyField _hotkey;
         private readonly Func<string, string> _tryApply;
 
         // tryApply receives the combination and returns null if it could be used,
-        // or the reason it couldn't.
-        public SettingsForm(Theme theme, string currentHotkey, Func<string, string> tryApply, Action editFile)
-            : base(theme, "AutoShortcut settings", 480, 214)
+        // or the reason it couldn't. restoreWindows returns what to show, or null if cancelled.
+        public SettingsForm(Theme theme, string currentHotkey, Func<string, string> tryApply, Action editFile,
+            Func<string> restoreWindows)
+            : base(theme, "AutoShortcut settings", 480, 292)
         {
             _tryApply = tryApply;
 
@@ -34,6 +36,16 @@ namespace AutoShortcut
             link.Location = new Point(Ui.S(16), Ui.S(134));
             link.LinkClicked += delegate { editFile(); };
             Controls.Add(link);
+
+            AddLabel("Windows shortcuts", 16, 166);
+            AddNote("The ones you moved to other keys (right-click > Edit hotkey) go back to their defaults.", 16, 196, 448);
+            Button restore = AddButton("Restore Windows shortcuts", 16, 220, 220, false);
+            Label done = AddNote("", 248, 226, 216);
+            restore.Click += delegate
+            {
+                string result = restoreWindows();
+                if (result != null) done.Text = result;
+            };
         }
 
         protected override string TrySave()

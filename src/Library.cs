@@ -17,11 +17,15 @@ namespace AutoShortcut
         public string Target;        // gray text instead of keycaps (launch shortcuts)
         public string Also;          // other combinations for the same action
         public string Note;          // why it can't be run (reference only)
+        public string Detail;        // what it does, for the tooltip ("Opens notepad.exe")
+        public string DefaultKeys;   // Windows shortcuts that run: their default combination
         public Shortcut Shortcut;    // what runs on click; null = reference only
         public int CustomIndex = -1; // position in Config.Shortcuts, -1 if built in
         internal string SearchText;  // lowercase text the search looks in
 
         public bool Runnable { get { return Shortcut != null; } }
+
+        internal Entry MemberwiseCloneEntry() { return (Entry)MemberwiseClone(); }
         public bool IsCustom { get { return CustomIndex >= 0; } }
     }
 
@@ -76,7 +80,7 @@ namespace AutoShortcut
             {
                 Catalog();
                 Entry e;
-                return _catalogByRef.TryGetValue(reference, out e) ? e : null;
+                return _catalogByRef.TryGetValue(reference, out e) ? Moved(c, e) : null;
             }
             if (reference.StartsWith("custom:"))
             {
@@ -96,7 +100,7 @@ namespace AutoShortcut
             {
                 List<Entry> matches = new List<Entry>();
                 foreach (Entry e in Customs(c)) if (Matches(e, tokens)) matches.Add(e);
-                foreach (Entry e in Catalog()) if (Matches(e, tokens)) matches.Add(e);
+                foreach (Entry e in Windows(c)) if (Matches(e, tokens)) matches.Add(e);
                 return Grouped(matches);
             }
 
@@ -106,13 +110,13 @@ namespace AutoShortcut
                 case ViewTab.Favorites: return Resolved(c, c.Favorites);
                 case ViewTab.Custom: return Plain(Customs(c));
                 case ViewTab.Windows11:
-                    if (section == null) return Grouped(new List<Entry>(Catalog()));
+                    if (section == null) return Grouped(Windows(c));
                     List<Entry> inSection = new List<Entry>();
-                    foreach (Entry e in Catalog()) if (e.Section == section) inSection.Add(e);
+                    foreach (Entry e in Windows(c)) if (e.Section == section) inSection.Add(e);
                     return Plain(inSection);
                 default:
                     List<Entry> everything = Customs(c);
-                    everything.AddRange(Catalog());
+                    everything.AddRange(Windows(c));
                     return Grouped(everything);
             }
         }
@@ -120,6 +124,31 @@ namespace AutoShortcut
         public static bool Matches(Entry e, string query)
         {
             return Matches(e, Tokens(query));
+        }
+
+        // The catalog as this config sees it: with the Windows shortcuts the user moved
+        // to another combination.
+        private static List<Entry> Windows(Config c)
+        {
+            List<Entry> list = new List<Entry>();
+            foreach (Entry e in Catalog()) list.Add(Moved(c, e));
+            return list;
+        }
+
+        // The catalog entry itself, or a copy showing the combination it was moved to.
+        private static Entry Moved(Config c, Entry e)
+        {
+            string now = HotkeyRules.Current(c, e.DefaultKeys);
+            KeyCombo combo;
+            if (now == e.DefaultKeys || !KeyCombo.TryParse(now, out combo)) return e;
+            KeyCombo original;
+            KeyCombo.TryParse(e.DefaultKeys, out original);
+
+            Entry copy = e.MemberwiseCloneEntry();
+            copy.Keycaps = combo.DisplayParts();
+            copy.Detail = "Windows default: " + string.Join(" + ", original.DisplayParts());
+            copy.SearchText = SearchTextOf(copy);
+            return copy;
         }
 
         // ---- Building entries ----
@@ -140,6 +169,7 @@ namespace AutoShortcut
                 s.Name = item.Name;
                 s.KeysText = combo.ToString();
                 e.Shortcut = s;
+                e.DefaultKeys = s.KeysText;
             }
             else
             {
@@ -157,15 +187,25 @@ namespace AutoShortcut
             e.Section = CustomSection;
             e.CustomIndex = index;
             e.Shortcut = s;
-            if (s.IsLaunch)
+            KeyCombo combo;
+            if (s.HasHotkey)
+            {
+                if (KeyCombo.TryParse(s.Hotkey, out combo)) e.Keycaps = combo.DisplayParts();
+                else e.Target = "invalid hotkey";
+                e.Detail = "Opens " + DescribeTarget(s.Run);
+            }
+            else if (s.IsLaunch)
             {
                 e.Target = DescribeTarget(s.Run);
             }
+            else if (KeyCombo.TryParse(s.KeysText, out combo))
+            {
+                e.Keycaps = combo.DisplayParts();
+                e.Detail = "Presses " + string.Join(" + ", combo.DisplayParts());
+            }
             else
             {
-                KeyCombo combo;
-                if (KeyCombo.TryParse(s.KeysText, out combo)) e.Keycaps = combo.DisplayParts();
-                else e.Target = "invalid key combination";
+                e.Target = "invalid key combination";
             }
             e.SearchText = SearchTextOf(e);
             return e;
@@ -258,7 +298,7 @@ namespace AutoShortcut
         private static string SearchTextOf(Entry e)
         {
             string keys = e.Keycaps == null ? "" : string.Join(" ", e.Keycaps);
-            return (e.Name + " " + e.Section + " " + keys + " " + e.Target + " " + e.Also).ToLowerInvariant();
+            return (e.Name + " " + e.Section + " " + keys + " " + e.Target + " " + e.Also + " " + e.Detail).ToLowerInvariant();
         }
     }
 }

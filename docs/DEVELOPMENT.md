@@ -46,11 +46,13 @@ The `.ps1` files are ASCII-only on purpose: Windows PowerShell 5.1 reads scripts
 | `Library.cs` | Entries, views per tab, search |
 | `Config.cs` / `Shortcut.cs` | Read and save `shortcuts.json` (custom shortcuts, favorites, recents) |
 | `EditorForm.cs` / `SettingsForm.cs` | Windows to edit a shortcut and change the hotkey |
+| `WindowsHotkeyForm.cs` | Moves a Windows shortcut to another combination |
+| `HotkeyRules.cs` | Who uses a combination (app, your shortcuts, Windows), restoring defaults, what to listen to |
 | `ThemedDialog.cs` / `InputBox.cs` / `MenuRenderer.cs` / `IconButton.cs` | Themed windows, text boxes, menus, buttons |
 | `KeyField.cs` / `KeyRecorder.cs` | Combination field with the Record button |
 | `KeyCombo.cs` | Text `"Win+Shift+Z"` ⇄ keys |
 | `KeySender.cs` / `ActionRunner.cs` | Run a shortcut |
-| `HotkeyWindow.cs` | Global hotkey |
+| `HotkeyWindow.cs` | Global hotkeys (one id each), paused while the app presses its own keys |
 | `Theme.cs` / `Ui.cs` | Light/dark (and acrylic) colors, scaling, icons, window frame |
 | `Glass.cs` | Painting that keeps alpha, for the acrylic pop-up |
 

@@ -56,7 +56,28 @@ namespace AutoShortcut
         [DllImport("user32.dll")]
         private static extern uint MapVirtualKey(uint code, uint mapType);
 
+        [DllImport("user32.dll")]
+        private static extern short GetAsyncKeyState(int vKey);
+
+        // An unassigned key code, pressed so that letting go of Alt or Win doesn't
+        // open a menu or Start (the same trick other hotkey tools use).
+        private const Keys MaskKey = (Keys)0xE8;
+
+        private static readonly Keys[] HeldModifiers =
+        {
+            Keys.LWin, Keys.RWin, Keys.LControlKey, Keys.RControlKey,
+            Keys.LMenu, Keys.RMenu, Keys.LShiftKey, Keys.RShiftKey,
+        };
+
         public static bool Send(KeyCombo combo)
+        {
+            return Send(combo, false);
+        }
+
+        // releaseHeld: the user may still be holding the modifiers of the hotkey that
+        // got us here (Ctrl+Alt of Ctrl+Alt+C): let go of them first, or the app would
+        // get Ctrl+Alt+C instead of Ctrl+C.
+        public static bool Send(KeyCombo combo, bool releaseHeld)
         {
             List<Keys> mods = new List<Keys>();
             if (combo.Has(KeyCombo.MOD_WIN)) mods.Add(Keys.LWin);
@@ -65,6 +86,18 @@ namespace AutoShortcut
             if (combo.Has(KeyCombo.MOD_SHIFT)) mods.Add(Keys.LShiftKey);
 
             List<INPUT> inputs = new List<INPUT>();
+            if (releaseHeld)
+            {
+                List<Keys> held = new List<Keys>();
+                foreach (Keys k in HeldModifiers)
+                    if ((GetAsyncKeyState((int)k) & 0x8000) != 0) held.Add(k);
+                if (held.Count > 0)
+                {
+                    inputs.Add(Make(MaskKey, false));
+                    inputs.Add(Make(MaskKey, true));
+                    foreach (Keys k in held) inputs.Add(Make(k, true));
+                }
+            }
             foreach (Keys m in mods) inputs.Add(Make(m, false));
             inputs.Add(Make(combo.Key, false));
             inputs.Add(Make(combo.Key, true));

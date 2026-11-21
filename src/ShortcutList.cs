@@ -221,6 +221,7 @@ namespace AutoShortcut
         private static string TipFor(Entry e)
         {
             List<string> lines = new List<string>();
+            if (e.Detail != null) lines.Add(e.Detail);
             if (e.Also != null) lines.Add("Also: " + e.Also);
             if (e.Note != null) lines.Add(e.Note);
             return lines.Count == 0 ? null : string.Join("\n", lines);

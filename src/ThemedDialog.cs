@@ -50,6 +50,16 @@ namespace AutoShortcut
             CancelButton = CancelBtn;
         }
 
+        // For windows whose content changes: moves the buttons to the new bottom.
+        protected void SetHeight(int height)
+        {
+            int buttonsY = height - 44;
+            ClientSize = new Size(ClientSize.Width, Ui.S(height));
+            ErrorLabel.Top = Ui.S(buttonsY - 2);
+            CancelBtn.Top = Ui.S(buttonsY);
+            SaveButton.Top = Ui.S(buttonsY);
+        }
+
         // Validates and saves. Returns null on success, or the error to show.
         protected virtual string TrySave()
         {

@@ -36,6 +36,13 @@ namespace AutoShortcut.Tests
             Test("AcrylicRules", AcrylicRules);
             Test("GlassColorsSwap", GlassColorsSwap);
             Test("TextFormatMapping", TextFormatMapping);
+            Test("HotkeyJsonRoundTrip", HotkeyJsonRoundTrip);
+            Test("HotkeyConflicts", HotkeyConflicts);
+            Test("HotkeyConflictsWithOverride", HotkeyConflictsWithOverride);
+            Test("RestoreWindowsDefaults", RestoreWindowsDefaults);
+            Test("WindowsOverrideView", WindowsOverrideView);
+            Test("CustomHotkeyView", CustomHotkeyView);
+            Test("HotkeyTriggers", HotkeyTriggers);
 
             Console.WriteLine(_passed + " passed, " + _failed + " failed");
             return _failed;
@@ -501,6 +508,170 @@ namespace AutoShortcut.Tests
                 Check("wraps", (sf.FormatFlags & System.Drawing.StringFormatFlags.NoWrap) == 0, "word break must wrap");
                 Equal("no trim", System.Drawing.StringTrimming.None, sf.Trimming);
             }
+        }
+
+        // ---- Hotkeys for shortcuts ----
+
+        private static Shortcut Launch(string name, string run, string hotkey)
+        {
+            Shortcut s = new Shortcut();
+            s.Name = name;
+            s.Run = run;
+            s.Hotkey = hotkey;
+            return s;
+        }
+
+        private static Shortcut Reminder(string name, string keys)
+        {
+            Shortcut s = new Shortcut();
+            s.Name = name;
+            s.KeysText = keys;
+            return s;
+        }
+
+        // Notepad opens with Ctrl+Alt+N, Calculator only on click, "Reopen tab" is a reminder.
+        private static Config HotkeyConfig()
+        {
+            Config c = new Config();
+            c.Shortcuts.Add(Launch("Notepad", "notepad.exe", "Ctrl+Alt+N"));
+            c.Shortcuts.Add(Launch("Calculator", "calc.exe", null));
+            c.Shortcuts.Add(Reminder("Reopen tab", "Ctrl+Shift+T"));
+            return c;
+        }
+
+        private static void HotkeyJsonRoundTrip()
+        {
+            Config c = Config.Parse("{\"hotkey\":\"Win+Shift+Z\",\"shortcuts\":[" +
+                "{\"name\":\"Notepad\",\"run\":\"notepad.exe\",\"hotkey\":\"ctrl+alt+n\"}," +
+                "{\"name\":\"Calc\",\"run\":\"calc.exe\"}," +
+                "{\"name\":\"Tab\",\"keys\":\"Ctrl+Shift+T\",\"hotkey\":\"Ctrl+Alt+T\"}]," +
+                "\"windowsHotkeys\":{\"ctrl+c\":\"ctrl+alt+c\",\"nonsense\":\"Ctrl+Alt+X\",\"Ctrl+V\":\"oops\"}}");
+            Equal("hotkey normalized", "Ctrl+Alt+N", c.Shortcuts[0].Hotkey);
+            Equal("no hotkey", null, c.Shortcuts[1].Hotkey);
+            Equal("reminder has no hotkey", null, c.Shortcuts[2].Hotkey);
+            Equal("reminder keys", "Ctrl+Shift+T", c.Shortcuts[2].KeysText);
+            Equal("one override", 1, c.WindowsHotkeys.Count);
+            Equal("override", "Ctrl+Alt+C", c.WindowsHotkeys.ContainsKey("Ctrl+C") ? c.WindowsHotkeys["Ctrl+C"] : null);
+
+            string json = c.ToJson();
+            Config back = Config.Parse(json);
+            Equal("back hotkey", "Ctrl+Alt+N", back.Shortcuts[0].Hotkey);
+            Equal("back none", null, back.Shortcuts[1].Hotkey);
+            Equal("back override", "Ctrl+Alt+C", back.WindowsHotkeys["Ctrl+C"]);
+            Check("json has hotkey", json.Contains("\"hotkey\": \"Ctrl+Alt+N\""), "per-shortcut hotkey should be written");
+
+            Check("no empty map", !Config.CreateDefault().ToJson().Contains("windowsHotkeys"),
+                "windowsHotkeys is only written when something changed");
+            Check("old file still loads", Config.Parse("{\"shortcuts\":[{\"name\":\"A\",\"keys\":\"Ctrl+K\"}]}").WindowsHotkeys.Count == 0,
+                "a file without windowsHotkeys has none");
+        }
+
+        private static void HotkeyConflicts()
+        {
+            Config c = HotkeyConfig();
+            Equal("app", "Already used to open AutoShortcut", HotkeyRules.UsedBy(c, "win+shift+z", HotkeyRules.Nobody));
+            Equal("app skipped", null, HotkeyRules.UsedBy(c, "Win+Shift+Z", HotkeyRules.App));
+            Equal("custom", "Already used by your shortcut \"Notepad\"", HotkeyRules.UsedBy(c, "Ctrl+Alt+N", HotkeyRules.Nobody));
+            Equal("custom itself", null, HotkeyRules.UsedBy(c, "Ctrl+Alt+N", HotkeyRules.Custom(0)));
+            Equal("reminder", "Already used by your shortcut \"Reopen tab\"", HotkeyRules.UsedBy(c, "Ctrl+Shift+T", HotkeyRules.Custom(0)));
+            Equal("windows", "Already used by Windows: Copy", HotkeyRules.UsedBy(c, "Ctrl+C", HotkeyRules.Nobody));
+            Equal("windows also", "Already used by Windows: Copy", HotkeyRules.UsedBy(c, "Ctrl+Insert", HotkeyRules.Nobody));
+            Equal("windows reserved", "Already used by Windows: Lock the PC", HotkeyRules.UsedBy(c, "Win+L", HotkeyRules.Nobody));
+            Equal("free", null, HotkeyRules.UsedBy(c, "Ctrl+Alt+K", HotkeyRules.Nobody));
+            Equal("invalid", null, HotkeyRules.UsedBy(c, "nonsense", HotkeyRules.Nobody));
+
+            // The app comes first, then your shortcuts, then Windows.
+            c.Hotkey = "Ctrl+Alt+N";
+            Equal("app first", "Already used to open AutoShortcut", HotkeyRules.UsedBy(c, "Ctrl+Alt+N", HotkeyRules.Nobody));
+            c.Shortcuts.Add(Launch("Mine", "x.exe", "Ctrl+C"));
+            Equal("custom before windows", "Already used by your shortcut \"Mine\"", HotkeyRules.UsedBy(c, "Ctrl+C", HotkeyRules.Nobody));
+        }
+
+        private static void HotkeyConflictsWithOverride()
+        {
+            Config c = HotkeyConfig();
+            c.WindowsHotkeys["Ctrl+C"] = "Ctrl+Alt+C";
+            Equal("new combo is Windows'", "Already used by Windows: Copy", HotkeyRules.UsedBy(c, "Ctrl+Alt+C", HotkeyRules.Nobody));
+            Equal("old combo is free", null, HotkeyRules.UsedBy(c, "Ctrl+C", HotkeyRules.Nobody));
+            Equal("other combo still taken", "Already used by Windows: Copy", HotkeyRules.UsedBy(c, "Ctrl+Insert", HotkeyRules.Nobody));
+            // Editing Copy itself: its own combinations don't count, Paste's do.
+            Equal("editing copy", null, HotkeyRules.UsedBy(c, "Ctrl+Insert", HotkeyRules.Windows("Ctrl+C")));
+            Equal("editing copy vs paste", "Already used by Windows: Paste", HotkeyRules.UsedBy(c, "Ctrl+V", HotkeyRules.Windows("ctrl+c")));
+            Equal("editing copy vs custom", "Already used by your shortcut \"Notepad\"", HotkeyRules.UsedBy(c, "Ctrl+Alt+N", HotkeyRules.Windows("Ctrl+C")));
+
+            HotkeyRules.SetWindowsHotkey(c, "Ctrl+C", "ctrl+c");
+            Equal("back to default drops the override", 0, c.WindowsHotkeys.Count);
+            HotkeyRules.SetWindowsHotkey(c, "ctrl+v", "Ctrl+Alt+V");
+            Equal("override saved normalized", "Ctrl+Alt+V", c.WindowsHotkeys["Ctrl+V"]);
+        }
+
+        private static void RestoreWindowsDefaults()
+        {
+            Config c = HotkeyConfig();
+            c.WindowsHotkeys["Ctrl+C"] = "Ctrl+Alt+C";
+            c.Shortcuts.Add(Launch("Took copy", "x.exe", "Ctrl+C"));
+            c.Shortcuts.Add(Launch("Took insert", "y.exe", "Ctrl+Insert"));
+            c.Shortcuts.Add(Reminder("Paste note", "Ctrl+V"));
+            List<string> lost = HotkeyRules.RestoreWindows(c);
+            Equal("overrides gone", 0, c.WindowsHotkeys.Count);
+            Equal("lost", "Took copy,Took insert", Join(lost));
+            Equal("cleared", null, c.Shortcuts[3].Hotkey);
+            Equal("cleared 2", null, c.Shortcuts[4].Hotkey);
+            Equal("kept", "Ctrl+Alt+N", c.Shortcuts[0].Hotkey);
+            Equal("reminder kept", "Ctrl+V", c.Shortcuts[5].KeysText);
+            Equal("still opens", "x.exe", c.Shortcuts[3].Run);
+        }
+
+        private static void WindowsOverrideView()
+        {
+            Config c = HotkeyConfig();
+            c.WindowsHotkeys["Ctrl+C"] = "Ctrl+Alt+C";
+            Entry copy = Library.Find(c, "win:text.copy");
+            Equal("override keycaps", "Ctrl,Alt,C", string.Join(",", copy.Keycaps));
+            Equal("still sends copy", "Ctrl+C", copy.Shortcut.KeysText);
+            Equal("default", "Ctrl+C", copy.DefaultKeys);
+            Equal("detail", "Windows default: Ctrl + C", copy.Detail);
+            Entry cmdCopy = Library.Find(c, "win:cmd.copy");
+            Equal("same combination everywhere", "Ctrl,Alt,C", string.Join(",", cmdCopy.Keycaps));
+            Check("search by new", Refs(Library.View(c, ViewTab.All, null, "ctrl alt c")).Contains("win:text.copy"), "finds by its hotkey");
+
+            Entry plain = Library.Find(new Config(), "win:text.copy");
+            Equal("cache untouched", "Ctrl,C", string.Join(",", plain.Keycaps));
+            Equal("no detail", null, plain.Detail);
+            Equal("default always set", "Ctrl+C", plain.DefaultKeys);
+            Equal("reference has no default", null, Library.Find(c, "win:winkey.lock").DefaultKeys);
+        }
+
+        private static void CustomHotkeyView()
+        {
+            Config c = HotkeyConfig();
+            Entry notepad = Library.Find(c, "custom:Notepad");
+            Equal("hotkey keycaps", "Ctrl,Alt,N", string.Join(",", notepad.Keycaps));
+            Equal("no target", null, notepad.Target);
+            Equal("opens", "Opens notepad.exe", notepad.Detail);
+            Entry calc = Library.Find(c, "custom:Calculator");
+            Equal("click only", null, calc.Keycaps);
+            Equal("target", "calc.exe", calc.Target);
+            Entry tab = Library.Find(c, "custom:Reopen tab");
+            Equal("reminder keycaps", "Ctrl,Shift,T", string.Join(",", tab.Keycaps));
+            Equal("presses", "Presses Ctrl + Shift + T", tab.Detail);
+            Check("search by hotkey", Refs(Library.View(c, ViewTab.All, null, "ctrl alt n")).Contains("custom:Notepad"), "finds by its hotkey");
+        }
+
+        private static void HotkeyTriggers()
+        {
+            Config c = HotkeyConfig();
+            c.WindowsHotkeys["Ctrl+C"] = "Ctrl+Alt+C";
+            List<Trigger> t = HotkeyRules.Triggers(c);
+            Equal("count", 2, t.Count);
+            Equal("custom combo", "Ctrl+Alt+N", t[0].Combo);
+            Equal("custom ref", "custom:Notepad", t[0].Ref);
+            Equal("custom runs", "notepad.exe", t[0].Shortcut.Run);
+            Equal("windows combo", "Ctrl+Alt+C", t[1].Combo);
+            Equal("windows ref", "win:text.copy", t[1].Ref);
+            Equal("windows sends", "Ctrl+C", t[1].Shortcut.KeysText);
+            Equal("message", "Ctrl+Alt+N for \"Notepad\" is already used by another app", t[0].InUseMessage());
+            Equal("windows message", "Ctrl+Alt+C for \"Copy\" is already used by another app", t[1].InUseMessage());
         }
 
         private static void BadRefListsIgnored()

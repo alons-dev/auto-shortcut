@@ -64,6 +64,7 @@ namespace AutoShortcut
         public event Action<int> EditRequested;           // menu > Edit (custom index)
         public event Action<int> DeleteRequested;         // menu > Delete
         public event Action<int, int> MoveRequested;      // menu > Move (index, -1 up / +1 down)
+        public event Action<Entry> WindowsEditRequested;  // menu > Edit hotkey (Windows shortcut)
 
         public PopupForm()
         {
@@ -330,6 +331,11 @@ namespace AutoShortcut
             }
             else
             {
+                if (entry.DefaultKeys != null)
+                {
+                    _menu.Items.Add("Edit hotkey…", null, delegate { RaiseWindowsEdit(); });
+                    _menu.Items.Add(new ToolStripSeparator());
+                }
                 _menu.Items.Add(favoriteText, null, delegate { RaiseFavorite(); });
             }
             _menu.Show(screen);
@@ -346,6 +352,13 @@ namespace AutoShortcut
         {
             Action<int, int> handler = MoveRequested;
             if (handler != null) BeginInvoke((MethodInvoker)delegate { handler(index, delta); });
+        }
+
+        private void RaiseWindowsEdit()
+        {
+            Entry entry = _menuEntry;
+            Action<Entry> handler = WindowsEditRequested;
+            if (handler != null && entry != null) BeginInvoke((MethodInvoker)delegate { handler(entry); });
         }
 
         private void RaiseFavorite()
